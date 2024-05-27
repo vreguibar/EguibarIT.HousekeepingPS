@@ -19,9 +19,14 @@
 
 ## Overview
 
-The EguibarIT.HousekeepingPS module is a powerful tool for maintaning your Active Directory (AD) environment. Whether you’re an IT administrator, security professional, or system architect, this module streamlines the process of regular compliancy tasks..
+The "EguibarIT.HousekeepingPS" module is a powerful toolkit for AD administrators looking to automate the cleanup and maintenance of their Active Directory environments. It offers a range of functions to remove stale objects, generate detailed reports, and ensure administrators are informed through logs and email notifications. This module not only helps in keeping the AD environment clean but also aids in improving security and performance by ensuring only active and necessary objects remain in the directory.
 
 ## Key Features
+
+- Automated Cleanup: The module provides tools to automate the cleanup of inactive AD objects, helping to maintain a tidy and efficient directory.
+- Customizable: Parameters can be customized to fit specific organizational needs, such as specifying the age threshold for inactive objects.
+- Reporting and Logging: Detailed reports and logs are generated to keep track of actions taken, which is crucial for auditing and compliance purposes.
+- Email Notifications: Administrators are kept in the loop with email notifications, which can be configured to send summaries of housekeeping activities.
 
 The AD Delegation Model (also known as [Role Based Access Control](http://eguibarit.eu/microsoft/active-directory/role-based-access-control/), or simply [RBAC](http://eguibarit.eu/microsoft/active-directory/role-based-access-control/)) is the implementation of: [Least Privileged Access](http://eguibarit.eu/least-privileged-access/), [Segregation of Duties](http://eguibarit.eu/segregation-of-duties/) and “[0 (zero) Admin](http://eguibarit.eu/0-admin-model/)“. By identifying the tasks that execute against Active Directory, we can categorize and organize in a set of functional groups, or roles. Those roles can be dynamically assigned to the [Semi-Privileged accounts](http://eguibarit.eu/privileged-semi-privileged-users/). This reduces the exposed rights by having what needs, and does provides an easy but effective auditing of rights. The model does helps reduce the running costs by increasing efficiency. Additionally increases the overall security of the directory, adhering to industry best practices.
 
