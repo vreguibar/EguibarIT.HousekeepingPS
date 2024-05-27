@@ -19,35 +19,55 @@ The "EguibarIT.HousekeepingPS" module is a powerful toolkit for AD administrator
 
 ## Key Features
 
-- Automated Cleanup: The module provides tools to automate the cleanup of inactive AD objects, helping to maintain a tidy and efficient directory.
-- Customizable: Parameters can be customized to fit specific organizational needs, such as specifying the age threshold for inactive objects.
-- Reporting and Logging: Detailed reports and logs are generated to keep track of actions taken, which is crucial for auditing and compliance purposes.
-- Email Notifications: Administrators are kept in the loop with email notifications, which can be configured to send summaries of housekeeping activities.
+### Inactive Accounts Management
 
-1. Inactive Accounts Management
+- **Disable-InactiveUsers**: Identifies and disables user accounts that have been inactive for a specified period.
+- **Remove-InactiveComputers**: Deletes computer accounts that have not logged in for a defined duration.
 
-- Disable-InactiveUsers: Identifies and disables user accounts that have been inactive for a specified period.
-- Remove-InactiveComputers: Deletes computer accounts that have not logged in for a defined duration.
+### Stale Objects Cleanup
 
-1. Stale Objects Cleanup
+- **Remove-StaleObjects**: Scans for and removes objects that have not been modified within a certain timeframe, reducing clutter and potential security risks.
 
-- Remove-StaleObjects: Scans for and removes objects that have not been modified within a certain timeframe, reducing clutter and - potential security risks.
+### Security Enhancements
 
-1.Security Enhancements
+- **Enforce-PasswordPolicies**: Applies custom password policies to ensure all user accounts comply with organizational security standards.
+- **Audit-GroupMemberships**: Audits group memberships to ensure that only authorized users are members of sensitive AD groups.
 
-- Enforce-PasswordPolicies: Applies custom password policies to ensure all user accounts comply with organizational security standards.
-- Audit-GroupMemberships: Audits group memberships to ensure that only authorized users are members of sensitive AD groups.
+### Compliance and Reporting
 
-1. Compliance and Reporting
+- **Generate-ComplianceReport**: Creates detailed reports on compliance with internal and external policies, helping organizations prepare for audits.
+- **Export-ADData**: Exports AD data to CSV or other formats for further analysis and reporting.
 
-- Generate-ComplianceReport: Creates detailed reports on compliance with internal and external policies, helping organizations prepare for audits.
-- Export-ADData: Exports AD data to CSV or other formats for further analysis and reporting.
+### Automation and Scheduling
 
-1. Automation and Scheduling
+- **Schedule-HousekeepingTasks**: Enables the scheduling of regular housekeeping tasks using Task Scheduler or other automation tools, ensuring continuous maintenance without manual intervention.
 
-- Schedule-HousekeepingTasks: Enables the scheduling of regular housekeeping tasks using Task Scheduler or other automation tools, ensuring continuous maintenance without manual intervention.
+### Logging and Monitoring
 
-1. Logging and Monitoring
+- **Enable-ADLogging**: Configures detailed logging of AD activities to help monitor changes and detect potential issues.
+- **Monitor-ADHealth**: Provides real-time monitoring of AD health, including replication status and domain controller performance.
 
-- Enable-ADLogging: Configures detailed logging of AD activities to help monitor changes and detect potential issues.
-- Monitor-ADHealth: Provides real-time monitoring of AD health, including replication status and domain controller performance.
+## Example Use Cases
+
+- **Routine Maintenance**: Schedule daily or weekly tasks to disable inactive accounts and clean up stale objects.
+- **Security Audits**: Regularly audit group memberships and enforce password policies to maintain a secure AD environment.
+- **Compliance Reporting**: Generate compliance reports periodically to ensure readiness for internal and external audits.
+
+## Usage
+
+Here is a brief example of how you might use the module to disable inactive users and generate a compliance report:
+
+```powershell
+# Import the module
+Import-Module EguibarIT.HousekeepingPS
+
+# Disable users inactive for more than 90 days
+Disable-InactiveUsers -DaysInactive 90 -WhatIf
+
+To install the EguibarIT.HousekeepingPS module, you can download it from the PowerShellGallery (or Github by cloning) and import it into your PowerShell session:
+
+````powershell
+Find-Module EguibarIT.HousekeepingPS | InstallModule -Scope AllUsers -Force
+
+````powershell
+Import-Module EguibarIT.HousekeepingPS
