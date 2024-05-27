@@ -15,7 +15,7 @@
   <a href="https://www.linkedin.com/in/VicenteRodriguezEguibar"><img src="https://img.shields.io/badge/LinkedIn-VicenteRodriguezEguibar-0077B5.svg?logo=LinkedIn"></a>
 </p>
 
-[![(https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg)]](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
+[![(https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)]](https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg)
 
 # EguibarIT.HousekeepingPS - Simplifying Active Directory Maintenance
 
