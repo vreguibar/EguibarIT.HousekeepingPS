@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <p align="center">
   <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg"></a>
   <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/vpre/EguibarIT.HousekeepingPS.svg?label=powershell%20gallery%20preview&colorB=yellow"></a>
