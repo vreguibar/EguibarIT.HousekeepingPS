@@ -1,24 +1,15 @@
-<p align="center">
-  <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg"></a>
-  <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/vpre/EguibarIT.HousekeepingPS.svg?label=powershell%20gallery%20preview&colorB=yellow"></a>
-  <a href="https://github.com/vreguibar/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/github/license/vreguibar/EguibarIT.HousekeepingPS.svg"></a>
-</p>
-
-<p align="center">
-  <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/p/EguibarIT.HousekeepingPS.svg"></a>
-  <a href="https://github.com/vreguibar/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/github/languages/top/vreguibar/EguibarIT.HousekeepingPS.svg"></a>
-  <a href="https://github.com/vreguibar/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/github/languages/code-size/vreguibar/EguibarIT.HousekeepingPS.svg"></a>
-  <a href="https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS"><img src="https://img.shields.io/powershellgallery/dt/EguibarIT.HousekeepingPS.svg"></a>
-</p>
-
-<p align="center">
-  <a href="https://www.linkedin.com/in/VicenteRodriguezEguibar"><img src="https://img.shields.io/badge/LinkedIn-VicenteRodriguezEguibar-0077B5.svg?logo=LinkedIn"></a>
-</p>
-
-[![Version](https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg)](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
-
-
 # EguibarIT.HousekeepingPS - Simplifying Active Directory Maintenance
+
+[![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/EguibarIT.HousekeepingPS.svg)](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
+[![PowerShell Gallery Preview Version](https://img.shields.io/powershellgallery/vpre/EguibarIT.HousekeepingPS.svg?label=powershell%20gallery%20preview&colorB=yellow)](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
+[![GitHub License](https://img.shields.io/github/license/vreguibar/EguibarIT.HousekeepingPS.svg)](https://github.com/vreguibar/EguibarIT.HousekeepingPS)
+
+[![PowerShell Gallery](https://img.shields.io/powershellgallery/p/EguibarIT.HousekeepingPS.svg)](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
+[![GitHub Top Language](https://img.shields.io/github/languages/top/vreguibar/EguibarIT.HousekeepingPS.svg)](https://github.com/vreguibar/EguibarIT.HousekeepingPS)
+[![GitHub Code Size](https://img.shields.io/github/languages/code-size/vreguibar/EguibarIT.HousekeepingPS.svg)](https://github.com/vreguibar/EguibarIT.HousekeepingPS)
+[![PowerShell Gallery Downloads](https://img.shields.io/powershellgallery/dt/EguibarIT.HousekeepingPS.svg)](https://www.powershellgallery.com/packages/EguibarIT.HousekeepingPS)
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-VicenteRodriguezEguibar-0077B5.svg?logo=LinkedIn)](https://www.linkedin.com/in/VicenteRodriguezEguibar)
 
 ## Overview
 
