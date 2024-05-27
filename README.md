@@ -66,8 +66,6 @@ Disable-InactiveUsers -DaysInactive 90 -WhatIf
 
 To install the EguibarIT.HousekeepingPS module, you can download it from the PowerShellGallery (or Github by cloning) and import it into your PowerShell session:
 
-````powershell
 Find-Module EguibarIT.HousekeepingPS | InstallModule -Scope AllUsers -Force
 
-````powershell
 Import-Module EguibarIT.HousekeepingPS
