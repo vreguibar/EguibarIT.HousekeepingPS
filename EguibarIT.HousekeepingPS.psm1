@@ -1,4 +1,4 @@
-# Get Enums
+# Get Enums.
 if (Test-Path -Path "$PSScriptRoot\Enums") {
     $Enums = @( Get-ChildItem -Path "$PSScriptRoot\Enums\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
 
