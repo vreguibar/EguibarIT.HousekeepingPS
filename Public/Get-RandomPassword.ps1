@@ -60,7 +60,10 @@
 
     Param (
         # Param1 INT indicating password length
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory =
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Specifies the length of the password. The default is 15 characters.',
             Position = 0)]
         [ValidateRange(1, 256)]
@@ -70,7 +73,10 @@
         $PasswordLength = 15,
 
         # Param2 INT indicating complexity
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory =
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Specifies the complexity of the password. Default is 3. 1- Pure lowercase Ascii. 2- Mix Uppercase and Lowercase Ascii. 3- Ascii Upper/Lower with Numbers. 4- Ascii Upper/Lower with Numbers and Punctuation',
             Position = 1)]
         [ValidateRange(1, 4)]
@@ -82,10 +88,12 @@
 
     Begin {
 
-        Write-Verbose -Message '|=> ************************************************************************ <=|'
-        Write-Verbose -Message (Get-Date).ToShortDateString()
-        Write-Verbose -Message ('  Starting: {0}' -f $MyInvocation.Mycommand)
-        Write-Verbose -Message ('Parameters used by the function... {0}' -f (Get-FunctionDisplay $PsBoundParameters -Verbose:$False))
+       $txt = ($constants.Header -f
+            (Get-Date).ToShortDateString(),
+            $MyInvocation.Mycommand,
+            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+        )
+        Write-Verbose -Message $txt
         #Write-Verbose -Message ('Password length... {0} | Complexity... {1}' -f $PasswordLength, $Complexity)
 
         ##############################

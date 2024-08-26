@@ -24,30 +24,35 @@
     [OutputType([String])]
 
     Param (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Hashtable variable from calling function containing PsBoundParameters to format accordingly',
             Position = 0)]
-        [ValidateNotNullOrEmpty()]
         [Hashtable]
         $HashTable,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Amount of Tabs to be used on the formatting.',
             Position = 1)]
-        [PSDefaultValue(Help = 'Default Value is 2.')]
+        [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'Default Value is "2"')]
         [int]
         $TabCount = 2
     )
 
     Begin {
-
-        $display = $Constants.NL
-
     } # end Begin
 
     Process {
 
         # Display PSBoundparameters formatted nicely for Verbose output
+
+        $display = $Constants.NL
 
         # Validate if HashTable is not empty
         if ($HashTable.Count -gt 0) {
@@ -66,4 +71,5 @@
     End {
         Return $display
     } #end END
+
 } #end Function

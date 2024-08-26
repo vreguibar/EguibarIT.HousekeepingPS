@@ -9,6 +9,29 @@
 
     # New Line
     NL       = [System.Environment]::NewLine
+
+    # Standard header used on each function on the Begin section
+    Header   = @'
+
+         ═══════════════════════════════════════════════════════════════════════════
+                              EguibarIT.HousekeepingPS module
+         ═══════════════════════════════════════════════════════════════════════════
+            Date:     {0}
+            Starting: {1}
+
+          Parameters used by the function... {2}
+
+'@
+
+    # Standard footer used on each function on the Begin section
+    Footer   = @'
+
+          Function {0} finished {1}"
+
+         ───────────────────────────────────────────────────────────────────────────
+
+'@
+
 }
 
 $Splat = @{

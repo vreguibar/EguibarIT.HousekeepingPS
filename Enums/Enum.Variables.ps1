@@ -37,7 +37,7 @@
 $Splat = @{
     Name        = 'Variables'
     Value       = $Variables
-    Description = 'Define a Module variable, containing Schema GUIDs, Naminc Contexts or Well Known SIDs'
+    Description = 'Define a Module variable, containing Schema GUIDs, Naming Contexts or Well Known SIDs'
     Scope       = 'Global'
     Force       = $true
 }

@@ -48,14 +48,20 @@
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'low')]
 
     param (
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Specifies the domain to perform the operations on.',
             Position = 0)]
         [PSDefaultValue(Help = 'Use current domain from $Env:USERDNSDOMAIN if parameter value is not provided.')]
         [string]
         $Domain = $Env:USERDNSDOMAIN,
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 1)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
@@ -65,10 +71,12 @@
     )
 
     begin {
-        Write-Verbose -Message '|=> ************************************************************************ <=|'
-        Write-Verbose -Message (Get-Date).ToShortDateString()
-        Write-Verbose -Message ('  Starting: {0}' -f $MyInvocation.Mycommand)
-        Write-Verbose -Message ('Parameters used by the function... {0}' -f (Get-FunctionDisplay $PsBoundParameters -Verbose:$False))
+        $txt = ($constants.Header -f
+            (Get-Date).ToShortDateString(),
+            $MyInvocation.Mycommand,
+            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+        )
+        Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
         if (-not (Get-Module -Name ActiveDirectory)) {
@@ -79,7 +87,7 @@
         # Variables Definition
 
         # explicit type declaration of HashTable
-        $Splat = [hashtable]::New()
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
 
         # Find a domain controller in the specified domain

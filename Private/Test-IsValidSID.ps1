@@ -6,7 +6,7 @@ function Test-IsValidSID {
         .DESCRIPTION
             Cmdlet will check if the input string is a valid SID.
 
-            Cmdlet is intended as a dignostic tool for input validation
+            Cmdlet is intended as a diagnostic tool for input validation
 
         .PARAMETER ObjectSID
             A string representing the object Security Identifier (SID).

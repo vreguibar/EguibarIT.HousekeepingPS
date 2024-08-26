@@ -183,14 +183,16 @@
     )
 
     Begin {
-        Write-Verbose -Message '|=> ************************************************************************ <=|'
-        Write-Verbose -Message (Get-Date).ToShortDateString()
-        Write-Verbose -Message ('  Starting: {0}' -f $MyInvocation.Mycommand)
-        Write-Verbose -Message ('Parameters used by the function... {0}' -f (Get-FunctionDisplay $PsBoundParameters -Verbose:$False))
+        $txt = ($constants.Header -f
+            (Get-Date).ToShortDateString(),
+            $MyInvocation.Mycommand,
+            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+        )
+        Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
         if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
+            Import-Module ActiveDirectory -SkipEditionCheck -Force -Verbose:$false | Out-Null
         } #end If
 
         ##############################
@@ -204,7 +206,7 @@
         [bool]$PrivilegedUserExist = $false
 
         # parameters variable for splatting CMDlets
-        $Splat = [hashtable]::New()
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
         # Check if email address is provided
         if ($null -ne $EmailTo) {
@@ -613,9 +615,9 @@ h1, h2, h3, h4 {
     } #end Process
 
     End {
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished creating/modifying Semi-Privileged user."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Constants.Footer -f $MyInvocation.InvocationName,
+            'creating/modifying Semi-Privileged user.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }
