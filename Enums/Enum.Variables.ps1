@@ -32,6 +32,29 @@
 
     # Well-Known SIDs
     WellKnownSIDs              = $null
+
+    # Standard header used on each function on the Begin section
+    HeaderHousekeeping         = @'
+
+         ═══════════════════════════════════════════════════════════════════════════
+                              EguibarIT.HousekeepingPS module
+         ═══════════════════════════════════════════════════════════════════════════
+            Date:     {0}
+            Starting: {1}
+
+          Parameters used by the function... {2}
+
+'@
+
+    # Standard footer used on each function on the Begin section
+    FooterHousekeeping         = @'
+
+          Function {0} finished {1}"
+
+         ───────────────────────────────────────────────────────────────────────────
+
+'@
+
 }
 
 $Splat = @{

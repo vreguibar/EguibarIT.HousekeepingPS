@@ -80,7 +80,9 @@
     [OutputType([String])]
 
     Param (
-        [Parameter( Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter( Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Identity of the user getting the new Admin Account (Semi-Privileged user).',
             Position = 0)]
         [Parameter(ParameterSetName = 'No-Email')]
@@ -89,16 +91,20 @@
         [ValidateNotNullOrEmpty]
         $SamAccountName,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Valid Email of the target user. This address will be used to send information to her/him.',
             Position = 1)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [Parameter(ParameterSetName = 'PasswordByEmail')]
-        [ValidatePattern("^(?("")("".+?""@)|(([0-9a-zA-Z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-zA-Z])@))(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,6}))$")]
+        [ValidatePattern([System.Net.Mail.MailAddress])]
         [string]
         $EmailTo,
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Must specify the account type. Valid values are T0 or T1 or T2',
             Position = 2)]
         [Parameter(ParameterSetName = 'No-Email')]
@@ -108,7 +114,9 @@
         [string]
         $AccountType,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Distinguished Name of the container where the Admin Accounts are located.',
             Position = 3)]
         [Parameter(ParameterSetName = 'No-Email')]
@@ -119,7 +127,9 @@
         [string]
         $AdminUsersDN,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Valid Email of the sending user. This address will be used to send the information and for authenticate to the SMTP server.',
             Position = 4)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -128,7 +138,9 @@
         [string]
         $From,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'User for authenticate to the SMTP server.',
             Position = 5)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -136,7 +148,9 @@
         [string]
         $CredentialUser,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Password for authenticate to the SMTP server. (User is E-mail address of sender)',
             Position = 6)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -144,7 +158,9 @@
         [System.Security.SecureString]
         $CredentialPassword,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'SMTP server.',
             Position = 7)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -152,7 +168,9 @@
         [string]
         $SMTPserver,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'SMTP port number.',
             Position = 8)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -160,21 +178,27 @@
         [int]
         $SMTPport,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Path to the body template file.',
             Position = 9)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [string]
         $BodyTemplate,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Path to the attached image of body template.',
             Position = 10)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [string]
         $BodyImage,
 
-        [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'Path to the body template file.',
             Position = 11)]
         [Parameter(ParameterSetName = 'DataByEmail')]
@@ -183,7 +207,7 @@
     )
 
     Begin {
-        $txt = ($constants.Header -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
@@ -191,9 +215,7 @@
         Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -SkipEditionCheck -Force -Verbose:$false | Out-Null
-        } #end If
+        Import-MyModule 'ActiveDirectory' -Verbose:$false
 
         ##############################
         # Variables Definition
@@ -615,7 +637,7 @@ h1, h2, h3, h4 {
     } #end Process
 
     End {
-        $txt = ($Constants.Footer -f $MyInvocation.InvocationName,
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
             'creating/modifying Semi-Privileged user.'
         )
         Write-Verbose -Message $txt

@@ -60,7 +60,7 @@
 
     Param (
         # Param1 INT indicating password length
-        [Parameter(Mandatory =
+        [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
             ValueFromRemainingArguments = $false,
@@ -73,11 +73,15 @@
         $PasswordLength = 15,
 
         # Param2 INT indicating complexity
-        [Parameter(Mandatory =
+        [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
             ValueFromRemainingArguments = $false,
-            HelpMessage = 'Specifies the complexity of the password. Default is 3. 1- Pure lowercase Ascii. 2- Mix Uppercase and Lowercase Ascii. 3- Ascii Upper/Lower with Numbers. 4- Ascii Upper/Lower with Numbers and Punctuation',
+            HelpMessage = 'Specifies the complexity of the password. Default is 3.
+                1- Pure lowercase Ascii.
+                2- Mix Uppercase and Lowercase Ascii.
+                3- Ascii Upper/Lower with Numbers.
+                4- Ascii Upper/Lower with Numbers and Punctuation',
             Position = 1)]
         [ValidateRange(1, 4)]
         [PSDefaultValue(Help = 'Default Value is 3 characters')]
@@ -88,7 +92,7 @@
 
     Begin {
 
-       $txt = ($constants.Header -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
@@ -137,10 +141,10 @@
     } #end Process
 
     End {
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished generating Random Password."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'generating Random Password.'
+        )
+        Write-Verbose -Message $txt
 
         Return $NewPassword
     } #end End

@@ -48,7 +48,7 @@
     )
 
     Begin {
-       $txt = ($constants.Header -f
+       $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
