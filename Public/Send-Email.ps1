@@ -60,25 +60,28 @@
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 
     param (
-        [Parameter( Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter( Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'The email address of the recipient. This parameter supports pipeline input.',
             Position = 0)]
-        [ValidateNotNullOrEmpty]
+        [ValidateNotNullOrEmpty()]
         [ValidatePattern("^(?("")("".+?""@)|(([0-9a-zA-Z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-zA-Z])@))(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,6}))$")]
+        [Alias('To')]
         [string]
         $Recipient,
 
         [Parameter( Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'The subject of the email.',
             Position = 1)]
-        [ValidateNotNullOrEmpty]
+        [ValidateNotNullOrEmpty()]
         [string]
         $Subject,
 
         [Parameter( Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
             HelpMessage = 'The body of the email.',
             Position = 2)]
-        [ValidateNotNullOrEmpty]
+        [ValidateNotNullOrEmpty()]
         [string]
         $Body,
 
@@ -102,13 +105,19 @@
         [int]
         $SmtpPort = 587,
 
-        [Parameter( Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter( Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'The username for SMTP authentication.',
             Position = 6)]
         [string]
         $Username,
 
-        [Parameter( Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter( Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'The password for SMTP authentication. This should be provided securely as [System.Security.SecureString].',
             Position = 7)]
         [System.Security.SecureString]
@@ -143,7 +152,7 @@
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
@@ -155,10 +164,12 @@
         $mailMessage = [System.Net.Mail.MailMessage]::new()
 
         # Validate and prepare credentials
-        #$securePassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
-        $smtpCreds = New-Object System.Net.NetworkCredential($Username, $securePassword)
+        #$smtpCreds = New-Object System.Net.NetworkCredential($Username, $securePassword)
+        $smtpCreds = [System.Net.NetworkCredential]::New($Username, $securePassword)
 
-        $smtpClient = New-Object System.Net.Mail.SmtpClient($SmtpServer, $SmtpPort)
+        #$smtpClient = New-Object System.Net.Mail.SmtpClient($SmtpServer, $SmtpPort)
+        $smtpClient = [System.Net.Mail.SmtpClient]::New($SmtpServer, $SmtpPort)
+
         $smtpClient.EnableSsl = $UseSsl
         $smtpClient.Credentials = $smtpCreds
         Write-Verbose 'SMTP client configured with SSL={0}.' -f $UseSsl
@@ -189,13 +200,15 @@
             if ($Attachments) {
                 foreach ($attachmentInput in $Attachments) {
                     if (Test-Path $attachmentInput -PathType Leaf) {
-                        $attachment = New-Object System.Net.Mail.Attachment($attachmentInput)
+                        #$attachment = New-Object System.Net.Mail.Attachment($attachmentInput)
+                        $attachment = [System.Net.Mail.Attachment]::New($attachmentInput)
                         $mailMessage.Attachments.Add($attachment)
                         Write-Verbose 'Attached file: {0}' -f $attachmentInput
                     } else {
                         # Assume the input is plain text and create a MemoryStream attachment
-                        $stream = New-Object System.IO.MemoryStream
-                        $writer = New-Object System.IO.StreamWriter($stream)
+                        $stream = [System.IO.MemoryStream]::New()
+                        $writer = [System.IO.StreamWriter]::New($stream)
+
                         $writer.Write($attachmentInput)
                         $writer.Flush()
                         $stream.Position = 0
@@ -223,9 +236,9 @@
     End {
         $smtpClient.Dispose()
 
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished sending eMail."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'sending email.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }

@@ -77,18 +77,20 @@
     #>
 
     [CmdletBinding(SupportsShouldProcess = $false, ConfirmImpact = 'Medium', DefaultParameterSetName = 'No-Email')]
-    [OutputType([String])]
+    [OutputType([Microsoft.ActiveDirectory.Management.ADAccount])]
 
     Param (
         [Parameter( Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Identity of the user getting the new Admin Account (Semi-Privileged user).',
             Position = 0)]
         [Parameter(ParameterSetName = 'No-Email')]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [Parameter(ParameterSetName = 'PasswordByEmail')]
-        [ValidateNotNullOrEmpty]
+        [Alias('Name', 'ID', 'Identity')]
+        [ValidateNotNullOrEmpty()]
         $SamAccountName,
 
         [Parameter(Mandatory = $false,
@@ -98,8 +100,7 @@
             Position = 1)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [Parameter(ParameterSetName = 'PasswordByEmail')]
-        [ValidatePattern([System.Net.Mail.MailAddress])]
-        [string]
+        [System.Net.Mail.MailAddress]
         $EmailTo,
 
         [Parameter(Mandatory = $true,
@@ -134,8 +135,7 @@
             Position = 4)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [Parameter(ParameterSetName = 'PasswordByEmail')]
-        [ValidatePattern("^(?("")("".+?""@)|(([0-9a-zA-Z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-zA-Z])@))(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,6}))$")]
-        [string]
+        [System.Net.Mail.MailAddress]
         $From,
 
         [Parameter(Mandatory = $false,
@@ -220,12 +220,11 @@
         ##############################
         # Variables Definition
 
-        [String] $newSamAccountName = $null
-        [String] $newPassword = Get-RandomPassword -PasswordLength 20 -Complexity 4
+        [string] $PWD = Get-RandomPassword -PasswordLength 20 -Complexity 4
+        [System.Security.SecureString] $newPassword = ConvertTo-SecureString -String $PWD -AsPlainText -Force
         [bool]$sendEmail = $false
         [bool]$sendPassword = $false
         [bool]$stdUserExist = $false
-        [bool]$PrivilegedUserExist = $false
 
         # parameters variable for splatting CMDlets
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
@@ -234,190 +233,17 @@
         if ($null -ne $EmailTo) {
             $sendEmail = $true
         } else {
-            Write-Verbose '[PROCESS] Semi-Privileged user created. No EmailTo was provided, so no notification will be created. Password must be set again manually.'
+            Write-Verbose -Message ('
+                [PROCESS]
+                        Semi-Privileged user will be created.
+                        No EmailTo was provided, so no notification will be created nor sent to user..
+                        Password must be set again manually.'
+            )
             $sendEmail = $false
             $sendPassword = $false
-        }
-
-    } #end Begin
-
-    Process {
-
-        # Search for Non-Privileged user.
-        $StdUser = Get-AdObjectType -Identity $PsBoundParameters['SamAccountName']
-
-        # If exist, retrieve all corresponding properties.
-        # Id does not exist, write a warning and exit script.
-        if ($null -eq $StdUser) {
-            Write-Warning '[WARNING] Standard User does not exist. Before creating a Semi-Privileged user, a standard user (Non-Privileged user) must exist. Make sure a standard user exists before proceeding.'
-
-            $stdUserExist = $false
-            $sendEmail = $false
-            $sendPassword = $false
-        } else {
-            Write-Verbose '[PROCESS] Standard user (Non-Privileged user) found! Proceeding to create the Semi-Privileged user.'
-            $stdUserExist = $true
         } #end If-Else
 
-
-        ################################################################################
-        # Standard user (Non-Privileged user) exists. Create the Semi-Privileged user
-        If ($stdUserExist) {
-            # Get the correct SamAccountName
-            $newSamAccountName = '{0}_{1}' -f $user.SamAccountName, $AccountType.ToUpper()
-
-            # Check if Surename exists, else use SamAccountName
-            if ($null -ne $StdUser.Surname) {
-                $Surename = $StdUser.Surname.ToUpper()
-            } else {
-                $Surename = $StdUser.samAccountName
-            } #end If-Else
-
-            # Check if GivenName exists, else use $null
-            if ($null -ne $StdUser.GivenName) {
-                $GivenName = (Get-Culture).TextInfo.ToTitleCase($StdUser.GivenName.ToLower())
-            } else {
-                $GivenName = $null
-            } #end If-Else
-
-            # Define mandatory attributes for new user
-            $splat = @{
-                SamAccountName        = $newSamAccountName
-                CN                    = $newSamAccountName
-                UserPrincipalName     = '{0}_{1}@{2}' -f $SamAccountName, $AccountType, $Variables.DnsFqdn
-                Name                  = '{0}, {1} ({2})' -f $StdUser.Surname.ToUpper(), (Get-Culture).TextInfo.ToTitleCase($StdUser.GivenName.ToLower()), $PsBoundParameters['AccountType']
-                DisplayName           = '{0}, {1} ({2})' -f $StdUser.Surname.ToUpper(), (Get-Culture).TextInfo.ToTitleCase($StdUser.GivenName.ToLower()), $PsBoundParameters['AccountType']
-                Surname               = $Surename
-                GivenName             = $GivenName
-                AccountPassword       = $newPassword
-                Description           = '{0} Admin account' -f $AccountType
-                Path                  = $AdminUsersDN
-                Enabled               = $true
-                TrustedForDelegation  = $false
-                AccountNotDelegated   = $true
-                ChangePasswordAtLogon = $false
-                ScriptPath            = $null
-                HomeDrive             = $null
-                HomeDirectory         = $null
-                Replace               = @{
-                    'employeeType'                  = $AccountType
-                    'msNpAllowDialin'               = $false
-                    'msDS-SupportedEncryptionTypes' = '24'
-                }
-                EmployeeNumber        = $StdUser.SID.Value.ToString()
-                EmployeeType          = $AccountType.ToUpper()
-            }
-
-            # Define additional attributes for new user if those exist
-            If ($StdUser.Company) {
-                $Splat.Add('Company', $StdUser.Company)
-            } #end If
-            If ($StdUser.Country) {
-                $Splat.Add('Country', $StdUser.Country)
-            } #end If
-            If ($StdUser.Department) {
-                $Splat.Add('Department', $StdUser.Department)
-            } #end If
-            If ($StdUser.Division) {
-                $Splat.Add('Division', $StdUser.Division)
-            } #end If
-            If ($StdUser.EmailAddress) {
-                $Splat.Add('EmailAddress', $StdUser.EmailAddress)
-                If (-Not ($PsBoundParameters['EmailTo'])) {
-                    Write-Verbose '[PROCESS] EmailTo was not given, but found on standard user. Using this email as a recipient.'
-                    $sendEmail = $true
-                    $PsBoundParameters['EmailTo'] = $StdUser.EmailAddress
-                } #end If
-            } #end If
-            If ($StdUser.EmployeeId) {
-                $Splat.Add('EmployeeId', $StdUser.EmployeeId)
-            } #end If
-            If ($StdUser.MobilePhone) {
-                $Splat.Add('MobilePhone', $StdUser.MobilePhone)
-            } #end If
-            If ($StdUser.Office) {
-                $Splat.Add('Office', $StdUser.Office)
-            } #end If
-            If ($StdUser.OfficePhone) {
-                $Splat.Add('OfficePhone', $StdUser.OfficePhone)
-            } #end If
-            If ($StdUser.Organization) {
-                $Splat.Add('Organization', $StdUser.Organization)
-            } #end If
-            If ($StdUser.OtherName) {
-                $Splat.Add('OtherName', $StdUser.OtherName)
-            } #end If
-            If ($StdUser.POBox) {
-                $Splat.Add('POBox', $StdUser.POBox)
-            } #end If
-            If ($StdUser.PostalCode) {
-                $Splat.Add('PostalCode', $StdUser.PostalCode)
-            } #end If
-            If ($StdUser.State) {
-                $Splat.Add('State', $StdUser.State)
-            } #end If
-            If ($StdUser.StreetAddress) {
-                $Splat.Add('StreetAddress', $StdUser.StreetAddress)
-            } #end If
-            If ($StdUser.Title) {
-                $Splat.Add('Title', $StdUser.Title)
-            } #end If
-        } #end If
-
-        # Create the user
-        Try {
-            $SemiPrivilegedAccount = New-ADUser @splat
-
-            Write-Verbose -Message ('New Admin Account {0} of type {1} was created correctly.' -f $PsBoundParameters['SamAccountName'], $PsBoundParameters['AccountType'])
-
-        } catch [Microsoft.ActiveDirectory.Management.ADIdentityAlreadyExistsException] {
-
-            # Identity already exist exception. The account already exist... Modifying it!
-            $PrivilegedUserExist = $true
-
-        } Catch {
-            throw
-        } #end Try-Catch
-
-
-        ################################################################################
-        # The account already exist... Modifying it!
-        If ($PrivilegedUserExist) {
-
-            Write-Verbose -Message ('[PROCESS] The Semi-Privileged user {0} already exists. Modifying the account.' -f $newSamAccountName)
-
-            # get the Semi-Privileged user
-            $SemiPrivilegedAccount = Get-ADUser -Identity $newSamAccountName
-
-            # Using the Splat variable above, update existing Semi-Privileged user
-            try {
-                # Set values on existing Semi-Privileged user
-                Set-ADUser @Splat
-
-                $sendEmail = $true
-                $sendPassword = $false
-
-                Write-Verbose -Message ('[PROCESS] Existing Semi-Privileged user {0} was modified successfully.' -f $newSamAccountName)
-
-            } catch {
-                Write-Verbose -Message ('Something went wrong while modifying existing Semi-Privileged user {0}.' -f $newSamAccountName)
-                $sendEmail = $false
-                $sendPassword = $false
-                throw
-            }
-
-        } #end If
-
-
-        ################################################################################
-        # Send Email notification
-        if ($sendEmail) {
-            #Check if Body Template was passed
-            If ($PsBoundParameters['BodyTemplate']) {
-                # Get content from file (usually HTML text)
-                $body = Get-Content -Path $PsBoundParameters['BodyTemplate'] -Raw
-            } else {
-                $body = @"
+        $body = @"
                 <!DOCTYPE html>
 <html>
 <head>
@@ -573,66 +399,147 @@ h1, h2, h3, h4 {
 </body>
 </html>
 "@
-            } #end If-else
 
-            # Find pattern within body text and replace it with new Semi-Privileged SamAccountName
-            $body = $body -replace '#@UserID@#', $SemiPrivilegedAccount
+    } #end Begin
 
-            # Find pattern within body text and replace it with DNS Domain Name (FQDN)
-            $body = $body -replace '#@DomainName@#', $Variables.DnsFqdn
+    Process {
 
-            # Check if any image was passed
-            If ($PsBoundParameters['BodyImage']) {
-                # Load the image file into a System.Drawing.Bitmap object
-                $bmp = [System.Drawing.Bitmap]::FromFile($PsBoundParameters['BodyImage'])
+        # Search for Non-Privileged user.
+        $StdUser = Get-AdObjectType -Identity $PsBoundParameters['SamAccountName']
 
-                try {
-                    # Save the Bitmap to the stream in BMP format
-                    $bmp.Save($stream, [System.Drawing.Imaging.ImageFormat]::Bmp)
-                    # Reset the stream position to the beginning
-                    $stream.Position = 0
+        # If exist, retrieve all corresponding properties.
+        # Id does not exist, write a warning and exit script.
+        if ($null -eq $StdUser) {
+            Write-Warning -Message ('
+                [WARNING]
+                        Standard User {0} does not exist.
+                        Before creating a Semi-Privileged user, a standard user (Non-Privileged user) must exist.
+                        Make sure a standard user exists before proceeding.' -f
+                $PsBoundParameters['SamAccountName']
+            )
 
-                    # Prepare the attachment using a memory stream
-                    $attachment = New-Object System.Net.Mail.Attachment($stream, [System.IO.Path]::GetFileName($PsBoundParameters['BodyImage']), 'image/bmp')
-                } finally {
-                    # Ensure that the bitmap is disposed of to free resources
-                    $bmp.Dispose()
-                } #end Try-Finally
-            } #end If
-
-            # Compile the eMail
-            $Splat = @{
-                Recipient   = $PsBoundParameters['EmailTo']
-                Subject     = 'New Semi-Privileged account based on the AD Delegation Model'
-                Body        = $body
-                Attachments = $attachment
-                Username    = $PsBoundParameters['CredentialUser']
-                Password    = $PsBoundParameters['CredentialPassword']
-                SmtpServer  = $PsBoundParameters['SMTPserver']
-                SmtpPort    = $PsBoundParameters['SMTPport']
-                UseSsl      = $true
-            }
-            Try {
-                # Send the email
-                Send-Email @Splat
-                Write-Verbose -Message '[PROCESS] Notification email sent successfully.'
-            } catch {
-                Write-Warning -Message 'Notification email could not be sent.'
-                $sendPassword = $false
-                throw
-            } #end Try-Catch
-
-
-        } else {
-            Write-Verbose -Message '[PROCESS] Semi-Privileged user created. No notification will be created. Password must be set again manually.'
+            $stdUserExist = $false
             $sendEmail = $false
             $sendPassword = $false
-        } #end If
+        } else {
+            Write-Verbose -Message ('
+                [PROCESS]
+                        Standard user (Non-Privileged user) found!
+                        Proceeding to create the Semi-Privileged user.'
+            )
+            $stdUserExist = $true
+
+            If ($StdUser.EmailAddress) {
+
+                If (-Not ($PsBoundParameters['EmailTo'])) {
+                    Write-Verbose -Message ('
+                        [PROCESS]
+                            EmailTo was not given, but found it on standard user. Using this email as a recipient.'
+                    )
+                    $sendEmail = $true
+                    $PsBoundParameters['EmailTo'] = $StdUser.EmailAddress
+                } #end If
+            } #end If
+        } #end If-Else
 
 
         ################################################################################
-        # Send encrypted Email containing password
+        # Standard user (Non-Privileged user) exists. Create the Semi-Privileged user
+        If ($stdUserExist) {
 
+            $Splat = @{
+                SamAccountName = $StdUser.SamAccountName
+                AccountType    = $PSBoundParameters['AccountType']
+                AdminUsersDN   = 'OU=Users,OU=Admin,DC=EguibarIT,DC=local'
+                Password       = $newPassword
+            }
+            $SemiPrivilegedUser = Set-SemiPrivilegedUser @Splat
+
+
+            ################################################################################
+            # Send Email notification
+            if ($sendEmail) {
+                #Check if Body Template was passed
+                If ($PsBoundParameters['BodyTemplate']) {
+                    # Get content from file (usually HTML text)
+                    $body = Get-Content -Path $PsBoundParameters['BodyTemplate'] -Raw
+                } #end If
+
+                # Find pattern within body text and replace it with new Semi-Privileged SamAccountName
+                $body = $body -replace '#@UserID@#', $SemiPrivilegedUser.SamAccountName
+
+                # Find pattern within body text and replace it with DNS Domain Name (FQDN)
+                $body = $body -replace '#@DomainName@#', $Variables.DnsFqdn
+
+                # Check if any image was passed
+                If ($PsBoundParameters['BodyImage']) {
+                    # Load the image file into a System.Drawing.Bitmap object
+                    $bmp = [System.Drawing.Bitmap]::FromFile($PsBoundParameters['BodyImage'])
+
+                    try {
+                        # Save the Bitmap to the stream in BMP format
+                        $bmp.Save($stream, [System.Drawing.Imaging.ImageFormat]::Bmp)
+                        # Reset the stream position to the beginning
+                        $stream.Position = 0
+
+                        # Prepare the attachment using a memory stream
+                        $attachment = [System.Net.Mail.Attachment]::New($stream, [System.IO.Path]::GetFileName($PsBoundParameters['BodyImage']), 'image/bmp')
+                    } finally {
+                        # Ensure that the bitmap is disposed of to free resources
+                        $bmp.Dispose()
+                    } #end Try-Finally
+                } #end If
+
+                # Compile the eMail
+                $Splat = @{
+                    To         = $PsBoundParameters['EmailTo']
+                    Subject    = 'New Semi-Privileged account based on the AD Delegation Model'
+                    Body       = $body
+                    Username   = $PsBoundParameters['CredentialUser']
+                    Password   = $PsBoundParameters['CredentialPassword']
+                    SmtpServer = $PsBoundParameters['SMTPserver']
+                    SmtpPort   = $PsBoundParameters['SMTPport']
+                }
+
+                If ($PSBoundParameters.ContainsKey('Attachment')) {
+                    $Splat.Add('Attachment', $PsBoundParameters['Attachment'])
+                } #end If
+
+                Try {
+                    # Send the email
+                    Send-NotificationEmail @Splat
+                    Write-Verbose -Message ('
+                        [PROCESS]
+                            Notification email sent successfully.'
+                    )
+                } catch {
+                    Write-Warning -Message ('
+                        [ERROR]
+                            Notification email could not be sent.'
+                    )
+                    $sendPassword = $false
+                    throw
+                } #end Try-Catch
+
+
+            } else {
+                Write-Verbose -Message ('
+                    [PROCESS]
+                        Semi-Privileged user created.
+                        No notification will be created nor email will be sent.
+                        Password must be set again manually.'
+                )
+
+                $sendEmail = $false
+                $sendPassword = $false
+            } #end If
+
+
+            ################################################################################
+            # Send encrypted Email containing password
+
+
+        } #end If
 
     } #end Process
 

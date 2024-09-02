@@ -33,7 +33,10 @@ function Test-IsValidDN {
 
     param
     (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'String to ve validated as DistinguishedName',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
@@ -43,20 +46,22 @@ function Test-IsValidDN {
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
         )
         Write-Verbose -Message $txt
 
-        $isValid = $false
+        ##############################
+        # Variables Definition
+
+        [bool]$isValid = $false
 
         # Define DN Regex
-        #[regex]$distinguishedNameRegex = '^(?:(?<cn>CN=(?<name>(?:[^,]|\,)*)),)?(?:(?<path>(?:(?:CN|OU)=(?:[^,]|\,)+,?)+),)?(?<domain>(?:DC=(?:[^,]|\,)+,?)+)$'
         [regex]$distinguishedNameRegex = '^(?:(?<cn>CN=(?<name>(?:[^,]+|\,)+)),)?(?:(?<ou>OU=(?:[^,]+|\,)+,?)*)(?<dc>DC=(?:[^,]+|\,)+)(?:,DC=(?:[^,]+|\,)+)*$'
 
-        Write-Verbose 'Begin block: Regex pattern for DN validation initialized.'
+        Write-Verbose -Message 'Begin block: Regex pattern for DN validation initialized.'
 
     } #end Begin
 
@@ -81,11 +86,10 @@ function Test-IsValidDN {
     } #end Process
 
     end {
-
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished checking DistinguishedName."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'testing DistinguishedName.'
+        )
+        Write-Verbose -Message $txt
 
         return $isValid
     } #end End
