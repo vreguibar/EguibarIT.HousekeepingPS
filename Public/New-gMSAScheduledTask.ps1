@@ -38,17 +38,15 @@
             Accepts values: 1, 2, 3, 4, 6, 8, 12, 24 or 48.
 
         .EXAMPLE
-            New-ScheduledTaskWithGMSA -TaskName "MyDailyTask" -TaskAction "-File C:\Scripts\MyScript.ps1"
-            -ActionPath "Powershell.exe" -gMSAAccount "gmsaTaskAccount$"
+            New-gMSAScheduledTask -TaskName "MyDailyTask" -TaskAction "-ExecutionPolicy ByPass -NoLogo -File 'C:\Scripts\ MyScript.ps1'"
+            -ActionPath "pwsh.exe" -gMSAAccount "gmsaTaskAccount$"
             -TriggerType "Daily" -StartTime "09:00" -TimesPerDay 4
 
             Creates a scheduled task that runs four times per day at intervals starting
             at 9:00 AM using the specified gMSA.
 
         .EXAMPLE
-            New-ScheduledTaskWithGMSA -TaskName "MyWeeklyTask" -TaskAction "-File C:\Scripts\MyScript.ps1"
-            -ActionPath "Powershell.exe" -gMSAAccount "gmsaTaskAccount$" -TriggerType "Weekly"
-            -StartTime "08:00" -DaysOfWeek Monday,Wednesday,Friday
+            New-gMSAScheduledTask -TaskName "MyWeeklyTask" -TaskAction "-ExecutionPolicy ByPass -NoLogo -File 'C:\Scripts\ MyScript.ps1'" -ActionPath "pwsh.exe" -gMSAAccount $x -TriggerType "Weekly" -StartTime "08:00" -DaysOfWeek Monday,Wednesday,Friday
 
             Creates a scheduled task that runs every Monday, Wednesday, and Friday
             at 8:00 AM using the specified gMSA.
@@ -76,8 +74,6 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the name of the Scheduled Task.',
             Position = 0)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $TaskName,
@@ -88,8 +84,6 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the action that the task will run (arguments for the executable).',
             Position = 1)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $TaskAction,
@@ -100,8 +94,6 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the full path for the executable or script (e.g., Powershell.exe or script path).',
             Position = 2)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $ActionPath,
@@ -112,8 +104,6 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the gMSA account that will run the task.',
             Position = 3)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         $gMSAAccount,
 
@@ -123,10 +113,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Optional: Provide a description for the scheduled task.',
             Position = 4)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [string]
-        $Description,
+        $Description = 'Scheduled task created using gMSA.',
 
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
@@ -134,8 +122,6 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the type of task trigger: Daily or Weekly.',
             Position = 5)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateSet('Daily', 'Weekly')]
         [string]
         $TriggerType,
@@ -146,9 +132,7 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the time the task should run (HH:mm format).',
             Position = 6)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
-        [ValidateNotNullOrEmpty()]
+        [ValidatePattern('^([01]?[0-9]|2[0-3]):[0-5][0-9]$', ErrorMessage = 'Time must be in HH:mm format.')]
         [string]
         $StartTime,
 
@@ -157,8 +141,8 @@
             ValueFromPipelineByPropertyName = $true,
             ValueFromRemainingArguments = $true,
             HelpMessage = 'For weekly tasks, specify the days of the week.',
+            ParameterSetName = 'WeeklyTrigger',
             Position = 7)]
-        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateSet('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')]
         [string[]]
         $DaysOfWeek,
@@ -168,8 +152,8 @@
             ValueFromPipelineByPropertyName = $true,
             ValueFromRemainingArguments = $true,
             HelpMessage = 'For daily tasks, specify how many times per day the task should run. Acceptable values: 1, 2, 3, 4, 6, 8, 12, 24.',
+            ParameterSetName = 'DailyTrigger',
             Position = 8)]
-        [Parameter(ParameterSetName = 'DailyTrigger')]
         [ValidateSet(1, 2, 3, 4, 6, 8, 12, 24, 48)]
         [PSDefaultValue(Help = 'Default Value is "1"')]
         [int]
@@ -188,6 +172,8 @@
 
         # parameters variable for splatting CMDlets
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
+        $triggerList = [System.Collections.Generic.List[object]]::New()
 
         # Validate if the gMSA account exists
         $gMSAAccount = Get-AdObjectType -Identity $PSBoundParameters['gMSAAccount']
@@ -213,11 +199,13 @@
                 } #end If
 
                 $Splat = @{
-                    Weekly     = $true
-                    DaysOfWeek = $PSBoundParameters['DaysOfWeek']
-                    At         = $PSBoundParameters['StartTime']
+                    Weekly      = $true
+                    DaysOfWeek  = $PSBoundParameters['DaysOfWeek']
+                    At          = $PSBoundParameters['StartTime']
+                    RandomDelay = (New-TimeSpan -Minutes 15)
                 }
                 $trigger = New-ScheduledTaskTrigger @Splat
+                $triggerList.Add($trigger)
 
                 Write-Verbose -Message ('
                     Weekly trigger
@@ -234,9 +222,19 @@
 
                 for ($i = 0; $i -lt $PSBoundParameters['TimesPerDay']; $i++) {
                     # Calculate the start time for each occurrence
-                    $currentTriggerTime = (Get-Date -Hour ([int]$PSBoundParameters['StartTime'].Split(':')[0]) -Minute ([int]$PSBoundParameters['StartTime'].Split(':')[1])).AddMinutes($i * $intervalMinutes)
-                    $trigger = New-ScheduledTaskTrigger -Daily -At $currentTriggerTime.ToString('HH:mm')
-                    $triggerList += $trigger
+                    $Splat = @{
+                        Hour   = ([int]$PSBoundParameters['StartTime'].Split(':')[0])
+                        Minute = ([int]$PSBoundParameters['StartTime'].Split(':')[1])
+                    }
+                    $currentTriggerTime = (Get-Date @Splat).AddMinutes($i * $intervalMinutes)
+
+                    $Splat = @{
+                        Daily       = $true
+                        At          = $currentTriggerTime.ToString('HH:mm')
+                        RandomDelay = (New-TimeSpan -Minutes 15)
+                    }
+                    $trigger = New-ScheduledTaskTrigger @Splat
+                    $triggerList.Add($trigger)
 
                     Write-Verbose -Message ('Daily trigger created at {0}.' -f $currentTriggerTime.ToString('HH:mm'))
                 } #end for
@@ -250,7 +248,7 @@
 
                 # Create the task principal with gMSA account
                 $Splat = @{
-                    UserId    = $gMSAAccount
+                    UserId    = '{0}\{1}' -f $env:USERDOMAIN, $gMSAAccount.SamAccountName
                     LogonType = 'Password'
                     RunLevel  = 'Highest'
                 }
@@ -260,18 +258,23 @@
                 # Register the task
                 $Splat = @{
                     AllowStartIfOnBatteries    = $true
+                    Compatibility              = 'Win8'
                     DontStopIfGoingOnBatteries = $true
+                    Hidden                     = $true
+                    Priority                   = 6
                     StartWhenAvailable         = $true
                 }
                 $taskSettings = New-ScheduledTaskSettingsSet @Splat
 
                 $Splat = @{
-                    TaskName    = $PSBoundParameters['TaskName']
-                    Action      = $action
-                    Trigger     = $triggerList
-                    Principal   = $principal
-                    Settings    = $taskSettings
-                    Description = $PSBoundParameters['Description']
+                    TaskName  = $PSBoundParameters['TaskName']
+                    Action    = $action
+                    Trigger   = $triggerList
+                    Principal = $principal
+                    Settings  = $taskSettings
+                }
+                If ( $PSBoundParameters.ContainsKey('Description')) {
+                    $Splat.Add('Description', $PSBoundParameters['Description'])
                 }
                 $task = Register-ScheduledTask @Splat
 
