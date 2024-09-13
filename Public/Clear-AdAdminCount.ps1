@@ -43,9 +43,9 @@
     Param(
 
         [Parameter(Mandatory = $true,
-            ValueFromPipeline = $True,
-            ValueFromPipelineByPropertyName = $True,
-            ValueFromRemainingArguments = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'The SamAccountName of the AD object to modify.',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
