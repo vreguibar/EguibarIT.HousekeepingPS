@@ -173,7 +173,8 @@
         # parameters variable for splatting CMDlets
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
-        $triggerList = [System.Collections.Generic.List[object]]::New()
+        #$triggerList = [System.Collections.Generic.List[object]]::New()
+        $triggerList = @()
 
         # Validate if the gMSA account exists
         $gMSAAccount = Get-AdObjectType -Identity $PSBoundParameters['gMSAAccount']
@@ -205,7 +206,7 @@
                     RandomDelay = (New-TimeSpan -Minutes 15)
                 }
                 $trigger = New-ScheduledTaskTrigger @Splat
-                $triggerList.Add($trigger)
+                $triggerList += $trigger
 
                 Write-Verbose -Message ('
                     Weekly trigger
@@ -234,7 +235,7 @@
                         RandomDelay = (New-TimeSpan -Minutes 15)
                     }
                     $trigger = New-ScheduledTaskTrigger @Splat
-                    $triggerList.Add($trigger)
+                    $triggerList += $trigger
 
                     Write-Verbose -Message ('Daily trigger created at {0}.' -f $currentTriggerTime.ToString('HH:mm'))
                 } #end for
@@ -277,6 +278,10 @@
                     $Splat.Add('Description', $PSBoundParameters['Description'])
                 }
                 $task = Register-ScheduledTask @Splat
+
+                # Set the author
+                $Task.Author = $env:USERNAME
+                $Task | Set-ScheduledTask
 
                 Write-Verbose -Message ('
                     Scheduled task {0}
