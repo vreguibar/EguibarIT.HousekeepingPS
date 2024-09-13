@@ -76,6 +76,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the name of the Scheduled Task.',
             Position = 0)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $TaskName,
@@ -86,6 +88,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the action that the task will run (arguments for the executable).',
             Position = 1)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $TaskAction,
@@ -96,6 +100,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the full path for the executable or script (e.g., Powershell.exe or script path).',
             Position = 2)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $ActionPath,
@@ -106,8 +112,9 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the gMSA account that will run the task.',
             Position = 3)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
-        [string]
         $gMSAAccount,
 
         [Parameter(Mandatory = $false,
@@ -116,8 +123,10 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Optional: Provide a description for the scheduled task.',
             Position = 4)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [string]
-        $Description = 'Scheduled task created using gMSA.',
+        $Description,
 
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
@@ -125,6 +134,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the type of task trigger: Daily or Weekly.',
             Position = 5)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateSet('Daily', 'Weekly')]
         [string]
         $TriggerType,
@@ -135,6 +146,8 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the time the task should run (HH:mm format).',
             Position = 6)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateNotNullOrEmpty()]
         [string]
         $StartTime,
@@ -145,6 +158,7 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'For weekly tasks, specify the days of the week.',
             Position = 7)]
+        [Parameter(ParameterSetName = 'WeeklyTrigger')]
         [ValidateSet('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')]
         [string[]]
         $DaysOfWeek,
@@ -155,6 +169,7 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'For daily tasks, specify how many times per day the task should run. Acceptable values: 1, 2, 3, 4, 6, 8, 12, 24.',
             Position = 8)]
+        [Parameter(ParameterSetName = 'DailyTrigger')]
         [ValidateSet(1, 2, 3, 4, 6, 8, 12, 24, 48)]
         [PSDefaultValue(Help = 'Default Value is "1"')]
         [int]
@@ -163,76 +178,120 @@
 
     begin {
         # Initial verbose message
-        Write-Verbose -Message "Starting the process to create the scheduled task '{0}' using gMSA '{1}'." -f $TaskName, $gMSAAccount
+        Write-Verbose -Message ('
+            Starting the process to create the
+                scheduled task {0}
+                using gMSA {1}.' -f
+            $PSBoundParameters['TaskName'], $PSBoundParameters['gMSAAccount']
+        )
+
+
+        # parameters variable for splatting CMDlets
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
         # Validate if the gMSA account exists
-        try {
-            $gMSAExists = Get-ADServiceAccount -Identity $gMSAAccount -ErrorAction Stop
-            Write-Verbose -Message "gMSA account '{0}' is valid." -f $gMSAAccount
-        } catch {
-            Write-Error -Message "The specified gMSA '{0}' does not exist or cannot be accessed." -f $gMSAAccount
-            return
-        }
+        $gMSAAccount = Get-AdObjectType -Identity $PSBoundParameters['gMSAAccount']
 
         # Prepare the action
-        $action = New-ScheduledTaskAction -Execute $ActionPath -Argument $TaskAction
-        Write-Verbose -Message 'Scheduled task action prepared: {0} {1}' -f $ActionPath, $TaskAction
+        $action = New-ScheduledTaskAction -Execute $PSBoundParameters['ActionPath'] -Argument $PSBoundParameters['TaskAction']
+        Write-Verbose -Message ('
+            Scheduled task action prepared:
+                Action Path: {0}
+                Task Action: {1}' -f
+            $PSBoundParameters['ActionPath'], $PSBoundParameters['TaskAction']
+        )
     } #end begin
 
     process {
+
         # Process the trigger based on TriggerType
-        switch ($TriggerType) {
+        switch ($PSBoundParameters['TriggerType']) {
             'Weekly' {
-                if (-not $DaysOfWeek) {
+                if (-not $PSBoundParameters['DaysOfWeek']) {
                     Write-Error -Message 'For a weekly task, you must specify at least one day of the week.'
                     return
-                }
+                } #end If
 
-                $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DaysOfWeek -At $StartTime
-                Write-Verbose -Message 'Weekly trigger created at {0} on {1}.' -f $StartTime, ($DaysOfWeek -join ', ')
+                $Splat = @{
+                    Weekly     = $true
+                    DaysOfWeek = $PSBoundParameters['DaysOfWeek']
+                    At         = $PSBoundParameters['StartTime']
+                }
+                $trigger = New-ScheduledTaskTrigger @Splat
+
+                Write-Verbose -Message ('
+                    Weekly trigger
+                        created at {0}
+                        on {1}.' -f
+                    $PSBoundParameters['StartTime'], ($PSBoundParameters['DaysOfWeek'] -join ', ')
+                )
+
             } #end Weekly
 
             'Daily' {
                 $triggerList = @()
-                $intervalMinutes = [math]::Round(1440 / $TimesPerDay)  # 1440 minutes in a day
+                $intervalMinutes = [math]::Round(1440 / $PSBoundParameters['TimesPerDay'])  # 1440 minutes in a day
 
-                for ($i = 0; $i -lt $TimesPerDay; $i++) {
+                for ($i = 0; $i -lt $PSBoundParameters['TimesPerDay']; $i++) {
                     # Calculate the start time for each occurrence
-                    $currentTriggerTime = (Get-Date -Hour ([int]$StartTime.Split(':')[0]) -Minute ([int]$StartTime.Split(':')[1])).AddMinutes($i * $intervalMinutes)
+                    $currentTriggerTime = (Get-Date -Hour ([int]$PSBoundParameters['StartTime'].Split(':')[0]) -Minute ([int]$PSBoundParameters['StartTime'].Split(':')[1])).AddMinutes($i * $intervalMinutes)
                     $trigger = New-ScheduledTaskTrigger -Daily -At $currentTriggerTime.ToString('HH:mm')
                     $triggerList += $trigger
 
-                    Write-Verbose -Message 'Daily trigger created at {0}.' -f $currentTriggerTime.ToString('HH:mm')
+                    Write-Verbose -Message ('Daily trigger created at {0}.' -f $currentTriggerTime.ToString('HH:mm'))
                 } #end for
             } #end Daily
+
         } #end switch
 
-        if ($PSCmdlet.ShouldProcess("Scheduled Task: $TaskName")) {
+        if ($PSCmdlet.ShouldProcess("Scheduled Task: $PSBoundParameters['TaskName']")) {
+
             try {
+
                 # Create the task principal with gMSA account
-                $principal = New-ScheduledTaskPrincipal -UserId $gMSAAccount -LogonType Password -RunLevel Highest
-                Write-Verbose -Message "Scheduled task principal created for gMSA '{0}'." -f $gMSAAccount
+                $Splat = @{
+                    UserId    = $gMSAAccount
+                    LogonType = 'Password'
+                    RunLevel  = 'Highest'
+                }
+                $principal = New-ScheduledTaskPrincipal @Splat
+                Write-Verbose -Message ('Scheduled task principal created for gMSA {0}.' -f $gMSAAccount)
 
                 # Register the task
-                $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-                if ($TriggerType -eq 'Daily') {
-                    $task = Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $triggerList -Principal $principal -Settings $taskSettings -Description $Description
-                } else {
-                    $task = Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $taskSettings -Description $Description
+                $Splat = @{
+                    AllowStartIfOnBatteries    = $true
+                    DontStopIfGoingOnBatteries = $true
+                    StartWhenAvailable         = $true
                 }
+                $taskSettings = New-ScheduledTaskSettingsSet @Splat
 
-                Write-Verbose -Message "Scheduled task '{0}' successfully created with gMSA '{1}'." -f $TaskName, $gMSAAccount
+                $Splat = @{
+                    TaskName    = $PSBoundParameters['TaskName']
+                    Action      = $action
+                    Trigger     = $triggerList
+                    Principal   = $principal
+                    Settings    = $taskSettings
+                    Description = $PSBoundParameters['Description']
+                }
+                $task = Register-ScheduledTask @Splat
+
+                Write-Verbose -Message ('
+                    Scheduled task {0}
+                    successfully created with gMSA {1}.' -f
+                    $PSBoundParameters['TaskName'], $gMSAAccount
+                )
+
                 Write-Output $task
             } catch {
-                Write-Error -Message 'Failed to create the scheduled task: {0}' -f $_
+                Write-Error -Message ('Failed to create the scheduled task: {0}' -f $_)
             } #end try-catch
         } #end if
     } #end process
 
     end {
-        Write-Verbose -Message "Scheduled task creation process completed for '{0}'." -f $TaskName
+        Write-Verbose -Message ('Scheduled task creation process completed for {0}.' -f $PSBoundParameters['TaskName'])
     } #end end
-}
+} #end Function
 
 
 # Example Usage:
