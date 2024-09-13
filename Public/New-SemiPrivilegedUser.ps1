@@ -51,6 +51,13 @@
             It sends notification emails to "john@example.com" using "admin@example.com" as the sender, and SMTP authentication credentials.
             It also specifies custom body templates for notification and encrypted password emails, and attaches an image to notification emails.
 
+            .INPUTS
+                String
+                SecureString
+
+            .OUTPUTS
+                Microsoft.ActiveDirectory.Management.ADAccount
+
         .NOTES
             Used Functions:
                 Name                                   | Module
@@ -76,7 +83,7 @@
                 http://www.eguibarit.com
     #>
 
-    [CmdletBinding(SupportsShouldProcess = $false, ConfirmImpact = 'Medium', DefaultParameterSetName = 'No-Email')]
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'Default')]
     [OutputType([Microsoft.ActiveDirectory.Management.ADAccount])]
 
     Param (
@@ -86,124 +93,91 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Identity of the user getting the new Admin Account (Semi-Privileged user).',
             Position = 0)]
-        [Parameter(ParameterSetName = 'No-Email')]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [Alias('Name', 'ID', 'Identity')]
         [ValidateNotNullOrEmpty()]
         $SamAccountName,
 
-        [Parameter(Mandatory = $false,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            HelpMessage = 'Valid Email of the target user. This address will be used to send information to her/him.',
-            Position = 1)]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
-        [System.Net.Mail.MailAddress]
-        $EmailTo,
-
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Must specify the account type. Valid values are T0 or T1 or T2',
-            Position = 2)]
-        [Parameter(ParameterSetName = 'No-Email')]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
+            Position = 1)]
         [ValidateSet('T0', 'T1', 'T2')]
         [string]
         $AccountType,
 
-        [Parameter(Mandatory = $false,
+        [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Distinguished Name of the container where the Admin Accounts are located.',
-            Position = 3)]
-        [Parameter(ParameterSetName = 'No-Email')]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
+            Position = 2)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [string]
         $AdminUsersDN,
 
+
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Valid Email of the target user. This address will be used to send information to her/him.',
+            Position = 3)]
+        [Parameter(ParameterSetName = 'DataByEmail')]
+        [System.Net.Mail.MailAddress]
+        $EmailTo,
+
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Valid Email of the sending user. This address will be used to send the information and for authenticate to the SMTP server.',
             Position = 4)]
         [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [System.Net.Mail.MailAddress]
         $From,
 
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'User for authenticate to the SMTP server.',
             Position = 5)]
         [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [string]
         $CredentialUser,
 
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Password for authenticate to the SMTP server. (User is E-mail address of sender)',
             Position = 6)]
         [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [System.Security.SecureString]
         $CredentialPassword,
 
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'SMTP server.',
             Position = 7)]
         [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [string]
         $SMTPserver,
 
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'SMTP port number.',
             Position = 8)]
         [Parameter(ParameterSetName = 'DataByEmail')]
-        [Parameter(ParameterSetName = 'PasswordByEmail')]
         [int]
-        $SMTPport,
-
-        [Parameter(Mandatory = $false,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            HelpMessage = 'Path to the body template file.',
-            Position = 9)]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [string]
-        $BodyTemplate,
-
-        [Parameter(Mandatory = $false,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            HelpMessage = 'Path to the attached image of body template.',
-            Position = 10)]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [string]
-        $BodyImage,
-
-        [Parameter(Mandatory = $false,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            HelpMessage = 'Path to the body template file.',
-            Position = 11)]
-        [Parameter(ParameterSetName = 'DataByEmail')]
-        [string]
-        $PwdBodyTemplate
+        $SMTPport
     )
 
     Begin {
@@ -410,8 +384,8 @@ h1, h2, h3, h4 {
         # If exist, retrieve all corresponding properties.
         # Id does not exist, write a warning and exit script.
         if ($null -eq $StdUser) {
-            Write-Warning -Message ('
-                [WARNING]
+            Write-Error -Message ('
+                [ERROR]
                         Standard User {0} does not exist.
                         Before creating a Semi-Privileged user, a standard user (Non-Privileged user) must exist.
                         Make sure a standard user exists before proceeding.' -f
@@ -434,7 +408,8 @@ h1, h2, h3, h4 {
                 If (-Not ($PsBoundParameters['EmailTo'])) {
                     Write-Verbose -Message ('
                         [PROCESS]
-                            EmailTo was not given, but found it on standard user. Using this email as a recipient.'
+                            EmailTo was not given, but found it on standard user.
+                            Using this email as a recipient.'
                     )
                     $sendEmail = $true
                     $PsBoundParameters['EmailTo'] = $StdUser.EmailAddress
@@ -459,11 +434,6 @@ h1, h2, h3, h4 {
             ################################################################################
             # Send Email notification
             if ($sendEmail) {
-                #Check if Body Template was passed
-                If ($PsBoundParameters['BodyTemplate']) {
-                    # Get content from file (usually HTML text)
-                    $body = Get-Content -Path $PsBoundParameters['BodyTemplate'] -Raw
-                } #end If
 
                 # Find pattern within body text and replace it with new Semi-Privileged SamAccountName
                 $body = $body -replace '#@UserID@#', $SemiPrivilegedUser.SamAccountName
@@ -492,13 +462,13 @@ h1, h2, h3, h4 {
 
                 # Compile the eMail
                 $Splat = @{
-                    To         = $PsBoundParameters['EmailTo']
-                    Subject    = 'New Semi-Privileged account based on the AD Delegation Model'
-                    Body       = $body
-                    Username   = $PsBoundParameters['CredentialUser']
-                    Password   = $PsBoundParameters['CredentialPassword']
-                    SmtpServer = $PsBoundParameters['SMTPserver']
-                    SmtpPort   = $PsBoundParameters['SMTPport']
+                    Recipient      = $PsBoundParameters['EmailTo']
+                    Subject        = 'New Semi-Privileged account based on the AD Delegation Model'
+                    Body           = $body
+                    From           = 'DelegationModel@EguibarIT.com'
+                    ClientId       = '67b0de82-6ee8-4720-b54e-c3932b7e1ff5'
+                    TenantId       = '80be540f-1de9-43fe-aab7-da6232ba820f'
+                    CertThumbprint = 'C5EF34A09BEAE5C75D904DA8DD54825D0787B60C'
                 }
 
                 If ($PSBoundParameters.ContainsKey('Attachment')) {
@@ -507,7 +477,8 @@ h1, h2, h3, h4 {
 
                 Try {
                     # Send the email
-                    Send-NotificationEmail @Splat
+                    #Send-NotificationEmail @Splat
+                    Send-NotificationGraphEmail @Splat
                     Write-Verbose -Message ('
                         [PROCESS]
                             Notification email sent successfully.'

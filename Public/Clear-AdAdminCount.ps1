@@ -18,11 +18,7 @@
             -----------
             Clears the 'adminCount' attribute for the AD object with SamAccountName 'jdoe' and ensures that inheritance of security permissions is enabled.
 
-        .OUTPUTS
-            String
-            Outputs a string indicating the operation result.
-
-        .NOTES
+         .NOTES
             Used Functions:
                 Name                                   | Module
                 ---------------------------------------|--------------------------
@@ -41,7 +37,7 @@
                 Eguibar Information Technology S.L.
                 http://www.eguibarit.com
     #>
-    [CmdletBinding(SupportsShouldProcess = $false, ConfirmImpact = 'Low')]
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string])]
 
     Param(
@@ -69,9 +65,9 @@
         Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+
+        Import-MyModule ActiveDirectory -Verbose:$false
+
 
         ##############################
         # Variables Definition
@@ -80,7 +76,6 @@
         $dnPath = $null
         $directoryEntry = $null
         $acl = $null
-        [string]$result = $null
 
     } #end Begin
 
@@ -89,42 +84,48 @@
             # Get the AD Object
             $adObject = Get-ADObject -Filter { SamAccountName -eq $SamAccountName } -Properties adminCount
 
-            if ($adObject) {
-                # Confirm action before proceeding
-                if ($Force -or $PSCmdlet.ShouldProcess($adObject.DistinguishedName, 'Clear adminCount and reset inheritance')) {
+            if (-not $adObject) {
+                Write-Warning "AD object not found: $SamAccountName"
+                return
+            }
 
-                    # Clear adminCount attribute
-                    Set-ADObject -Identity $adObject -Clear adminCount -WhatIf:$WhatIfPreference
+            # Confirm action before proceeding
+            if ($Force -or $PSCmdlet.ShouldProcess($adObject.DistinguishedName, 'Clear adminCount and reset inheritance')) {
 
-                    # Get the distinguished name
-                    $dnPath = 'LDAP://{0}' -f $adObject.DistinguishedName
-                    $directoryEntry = New-Object System.DirectoryServices.DirectoryEntry $dnPath
+                # Clear adminCount attribute
+                Set-ADObject -Identity $adObject -Clear adminCount -ErrorAction Stop
+                Write-Verbose -Message ('Cleared adminCount for {0}' -f $adObject.DistinguishedName)
 
-                    # Modify security settings to allow inheritance
-                    $acl = $directoryEntry.ObjectSecurity
-                    if ($acl.AreAccessRulesProtected) {
-                        $acl.SetAccessRuleProtection($false, $true)
-                        $directoryEntry.CommitChanges()
-                    } #end if
+                # Get the distinguished name
+                #$dnPath = 'LDAP://{0}' -f $adObject.DistinguishedName
+                #$directoryEntry = New-Object System.DirectoryServices.DirectoryEntry $dnPath
+                $directoryEntry = [ADSI]"LDAP://$($adObject.DistinguishedName)"
 
-                    $result = 'Object: {0} - Updated permissions, inheritance reset.' -f $adObject.DistinguishedName
-                    Write-Verbose -Message $result
-                }#end If
-            } else {
-                $result = 'AD object not found.'
-                Write-Verbose -Message $result
-            } #end If-Else
+                # Modify security settings to allow inheritance
+                $acl = $directoryEntry.ObjectSecurity
+                if ($acl.AreAccessRulesProtected) {
+                    $acl.SetAccessRuleProtection($false, $true)
+                    $directoryEntry.CommitChanges()
+                    Write-Verbose -Message ('Reset inheritance for {0}' -f $adObject.DistinguishedName)
+                } #end if
+
+                Write-Verbose -Message ('
+                    Object: {0}
+                        Updated permissions - OK
+                        inheritance reset   - OK' -f
+                    $adObject.DistinguishedName
+                )
+            }#end If
+
         } catch {
-            Write-Error -Message "An error occurred: $_"
+            Write-Error -Message ('An error occurred: {0}' -f $_)
         } #end Try-Catch
     } #end Process
 
     End {
-        $txt = ($Constants.Footer -f $MyInvocation.InvocationName,
-            'processing AdminCount & Permissions (Private Function).'
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'processing AdminCount & Permissions.'
         )
         Write-Verbose -Message $txt
-
-        return $result
     } #end End
 }

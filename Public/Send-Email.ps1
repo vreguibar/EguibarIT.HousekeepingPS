@@ -67,7 +67,7 @@
             Position = 0)]
         [ValidateNotNullOrEmpty()]
         [ValidatePattern("^(?("")("".+?""@)|(([0-9a-zA-Z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-zA-Z])@))(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,6}))$")]
-        [Alias('To')]
+        [Alias('To', 'EmailTo')]
         [string]
         $Recipient,
 
@@ -168,11 +168,17 @@
         $smtpCreds = [System.Net.NetworkCredential]::New($Username, $securePassword)
 
         #$smtpClient = New-Object System.Net.Mail.SmtpClient($SmtpServer, $SmtpPort)
-        $smtpClient = [System.Net.Mail.SmtpClient]::New($SmtpServer, $SmtpPort)
+        $smtpClient = [System.Net.Mail.SmtpClient]::New()
 
         $smtpClient.EnableSsl = $UseSsl
+        $smtpClient.UseDefaultCredentials = $false
+        $smtpClient.DeliveryMethod = [System.Net.Mail.SmtpDeliveryMethod]::Network
+        $smtpClient.TargetName = 'STARTTLS/smtp.gmail.com'
         $smtpClient.Credentials = $smtpCreds
-        Write-Verbose 'SMTP client configured with SSL={0}.' -f $UseSsl
+        $smtpClient.Host = $SmtpServer
+        $smtpClient.Port = $SmtpPort
+
+        Write-Verbose -Message ('SMTP client configured with SSL={0}.' -f $UseSsl)
     } #end Begin
 
     Process {
@@ -222,9 +228,9 @@
             if ($PSCmdlet.ShouldProcess("$From to $rcpt", 'Send email')) {
                 try {
                     $smtpClient.Send($mailMessage)
-                    Write-Verbose '"Email successfully sent to {0}; CC: {1}; BCC: {2}' -f $rcpt, $($Cc -join ', '), $($Bcc -join ', ')
+                    Write-Verbose -Message ('Email successfully sent to {0}; CC: {1}; BCC: {2}' -f $rcpt, $($Cc -join ', '), $($Bcc -join ', '))
                 } catch {
-                    Write-Error 'Failed to send email to {0}: {1}' -f $rcpt, $_
+                    Write-Error -Message ('Failed to send email to {0}: {1}' -f $rcpt, $_)
                 } #end Try-Catch
             } #end If
 
