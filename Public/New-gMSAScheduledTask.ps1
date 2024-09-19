@@ -151,7 +151,7 @@
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
             ValueFromRemainingArguments = $true,
-            HelpMessage = 'For daily tasks, specify how many times per day the task should run. Acceptable values: 1, 2, 3, 4, 6, 8, 12, 24.',
+            HelpMessage = 'For daily tasks, specify how many times per day the task should run. Acceptable values: 1, 2, 3, 4, 6, 8, 12, 24, 48.',
             ParameterSetName = 'DailyTrigger',
             Position = 8)]
         [ValidateSet(1, 2, 3, 4, 6, 8, 12, 24, 48)]

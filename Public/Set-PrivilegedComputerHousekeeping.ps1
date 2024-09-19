@@ -1,26 +1,48 @@
 ﻿Function Set-PrivilegedComputerHousekeeping {
     <#
         .SYNOPSIS
-            Check and manage privileged computers (PAWs and Infrastructure Servers).
+            Manages privileged and semi-privileged computers (PAWs and Infrastructure Servers) by updating their group memberships.
 
         .DESCRIPTION
-            This script checks for privileged and semi-privileged computers in specified OU
-            within Active Directory, updating group memberships as necessary.
+            This function identifies privileged (PAWs) and infrastructure servers from a specified Organizational Unit (OU) in Active Directory
+            and ensures their correct group memberships. It assigns computers running server operating systems to the infrastructure servers group
+            and other machines to the PAW group. This operation helps to automate the housekeeping of privileged computers, ensuring they are
+            consistently and correctly managed according to their roles.
 
         .PARAMETER SearchRootDN
-            Specifies the distinguished name of the search root in Active Directory.
+            Specifies the distinguished name (DN) of the OU where the function will search for computers. Only computers under this
+            search base will be processed.
 
         .PARAMETER InfraGroup
-            Identity of the group of all Infrastructure Servers
+            Specifies the distinguished name or group identifier for the group that contains all Infrastructure Servers.
+            Computers with server operating systems will be added to this group if found.
 
         .PARAMETER PawGroup
-            Identity of the group of all PAWs
+            Specifies the distinguished name or group identifier for the group that contains all PAW (Privileged Access Workstation) machines.
+            Non-server machines will be added to this group if found.
 
         .EXAMPLE
             Set-PrivilegedComputerHousekeeping -SearchRootDN "OU=Admin,DC=EguibarIT,DC=local" -InfraGroup 'SL_InfrastructureServers' -PawGroup 'SL_PAWs'
 
+            Description:
+            This example runs the housekeeping process for computers within the "OU=Admin,DC=EguibarIT,DC=local" organizational unit.
+            It adds server computers to the 'SL_InfrastructureServers' group and PAWs to the 'SL_PAWs' group based on their operating system.
+
+        .EXAMPLE
+            Set-PrivilegedComputerHousekeeping -SearchRootDN "OU=Servers,DC=EguibarIT,DC=local" -InfraGroup 'Infra_Servers_Group' -PawGroup 'PAW_Group' -WhatIf
+
+            Description:
+            This example shows what the function would do (without actually performing the changes) if it were to run on the "OU=Servers" organizational
+            unit, adding servers to the 'Infra_Servers_Group' and PAWs to the 'PAW_Group'. The `-WhatIf` parameter simulates the execution.
+
+        .INPUTS
+            None.
+            The function does not accept input objects from the pipeline.
+
         .OUTPUTS
-            Outputs verbose information about processing and errors if any occur.
+            None.
+            This function does not return any objects. It uses verbose messages for output and updates Active Directory objects.
+
 
         .NOTES
             Used Functions:
@@ -36,18 +58,20 @@
                 Test-IsValidDN                         | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
                 Get-AdObjectType                       | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
 
-        .NOTES
-            Version:        1.0
-            Author:         Your Name
-            Creation Date:  2024-04-25
-            Purpose/Change: Initial script development.
+        .LINK
+            https://www.delegationmodel.com/
+
     #>
 
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'low')]
+    [OutputType([void])]
 
     param(
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 0)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
@@ -55,14 +79,20 @@
         [String]
         $SearchRootDN,
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Identity of the group of all Infrastructure Servers.',
             Position = 1)]
         [ValidateNotNullOrEmpty()]
         [Alias('InfrastructureServers', 'AllServers', 'ServersGroupID')]
         $InfraGroup,
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Identity of the group of all PAWs.',
             Position = 2)]
         [ValidateNotNullOrEmpty()]
@@ -72,32 +102,41 @@
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
         )
         Write-Verbose -Message $txt
 
-        # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule ActiveDirectory
 
         ##############################
         # Variables Definition
 
+        # parameters variable for splatting CMDlets
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
         [int]$i = 0
-        [int]$NewServer = 0
-        [int]$NewPAW = 0
+
+        $stats = @{
+            NewServer = 0
+            NewPAW    = 0
+        }
 
         # Lists for computers
         $AllPrivComputers = [System.Collections.Generic.List[Object]]::new()
 
         # Get Infrastructure Servers group
         $InfraGroup = Get-AdObjectType -Identity $PsBoundParameters['InfraGroup']
+        if (-not $InfraGroup) {
+            Throw "Infrastructure Servers group ($InfraGroup) not found."
+        } #end If
 
         $PawGroup = Get-AdObjectType -Identity $PsBoundParameters['PawGroup']
+        if (-not $PawGroup) {
+            Throw "PAW group ($PawGroup) not found."
+        } #end If
 
     } #end Begin
 
@@ -109,7 +148,19 @@
             'SamAccountName',
             'DistinguishedName'
         )
-        $AllPrivComputers = Get-ADComputer -Filter * -Properties $Props -SearchBase $PsBoundParameters['SearchRootDN'] | Select-Object $Props
+
+        $Splat = @{
+            Filter     = '*'
+            Properties = $Props
+            SearchBase = $PsBoundParameters['SearchRootDN']
+        }
+        $AllPrivComputers = Get-ADComputer @Splat | Select-Object -Property $Props
+
+        $TotalObjectsFound = $AllPrivComputers.Count
+        if ($TotalObjectsFound -eq 0) {
+            Write-Verbose -Message ('No computers found in the search root: {0}.' -f $SearchRootDN)
+            return
+        } #end If
 
         # Iterate all found items
         Foreach ($item in $AllPrivComputers) {
@@ -125,36 +176,45 @@
             }
             Write-Progress @parameters
 
-            If (-not($item.DistinguishedName.Contains('Housekeeping'))) {
+            # exclude all computers within Housekeeping
+            if ($item.DistinguishedName -notlike '*Housekeeping*') {
 
-                If ($item.OperatingSystem -like '*Server*') {
-
-                    Add-ADGroupMember -Identity $InfraGroup -Members $Item.SamAccountName
-                    Write-Verbose ('Adding found Server {0} to SL_InfrastructureServers group' -f $Item.SamAccountName)
-                    $NewServer ++
-
+                $targetGroup = if ($item.OperatingSystem -like '*Server*') {
+                    $infraGroup
+                    $stats.NewServer++
                 } else {
-
-                    Add-ADGroupMember -Identity $PawGroup -Members $Item.SamAccountName
-                    Write-Verbose ('Adding found PAW {0} to SL_PAWs group' -f $Item.SamAccountName)
-                    $NewPAW ++
-
+                    $pawGroup
+                    $stats.NewPAW++
                 } #end If-Else
+
+                if ($PSCmdlet.ShouldProcess($item.SamAccountName, "Add to $($targetGroup.Name)")) {
+
+                    Add-ADGroupMember -Identity $targetGroup -Members $item -ErrorAction Stop
+
+                    Write-Verbose -Message ('
+                        Added {0}
+                        to {1}' -f
+                        $item.SamAccountName, $targetGroup.Name
+                    )
+
+                } #end If
             } #end If
+
         } #end Foreach
 
     } #end Process
 
     End {
         $Constants.NL
-        Write-Verbose 'Any semi-privileged and/or Privileged computer will be patched and managed by Tier0 services'
+        Write-Verbose -Message 'Any semi-privileged and/or Privileged computer will be patched and managed by Tier0 services'
         $Constants.NL
-        Write-Verbose ('Servers found..: {0}' -f $NewServer)
-        Write-Verbose ('PAWs found.   .: {0}' -f $NewPAW)
+        Write-Verbose -Message ('Servers found...: {0}' -f $stats.NewServer.Count)
+        Write-Verbose -Message ('PAWs found......: {0}' -f $stats.NewPAW.Count)
         $Constants.NL
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished setting Infrastructure Servers / PAWs housekeeping."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'setting Infrastructure Servers / PAWs housekeeping.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }

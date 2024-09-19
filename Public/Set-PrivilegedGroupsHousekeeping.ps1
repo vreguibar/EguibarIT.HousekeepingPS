@@ -5,7 +5,7 @@
 
         .DESCRIPTION
             This function audits groups in a specified Admin OU (Tier 0) and ensures that they only contain authorized users.
-            Authorized users are those with a SamAccountName ending in _T0, _T1, or _T2. Any users not matching this criteria
+            Authorized users are those with a SamAccountName ending in _T0, _T1, or _T2 or those who have the EmployeeType as 'T0' or 'T1' or 'T2'. Any users not matching this criteria
             or not explicitly excluded are removed from these groups.
 
         .PARAMETER AdminGroupsDN
@@ -18,10 +18,10 @@
             Set-PrivilegedGroupsHousekeeping "OU=Groups,OU=Admin,DC=EguibarIT,DC=local"
 
         .EXAMPLE
-            Set-PrivilegedGroupsHousekeeping -AdminUsersDN "OU=Groups,OU=Admin,DC=EguibarIT,DC=local"
+            Set-PrivilegedGroupsHousekeeping -AdminGroupsDN "OU=Groups,OU=Admin,DC=EguibarIT,DC=local"
 
         .EXAMPLE
-            Set-PrivilegedGroupsHousekeeping -AdminUsersDN "OU=Groups,OU=Admin,DC=EguibarIT,DC=local" -ExcludeList "dvader", "hsolo"
+            Set-PrivilegedGroupsHousekeeping -AdminGroupsDN "OU=Groups,OU=Admin,DC=EguibarIT,DC=local" -ExcludeList "dvader", "hsolo"
 
         .NOTES
             Used Functions:
@@ -46,11 +46,15 @@
                 http://www.eguibarit.com
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    [OutputType([void])]
 
     Param (
 
         #Param1
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 0)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
@@ -62,10 +66,10 @@
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $false,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'User list to be excluded from this process.',
             Position = 1)]
-        [System.Collections.ArrayList]
+        [System.Collections.Generic.List[String]]
         $ExcludeList
 
     )
@@ -74,44 +78,41 @@
         $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
         )
         Write-Verbose -Message $txt
 
-        # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule ActiveDirectory
+
 
         ##############################
         # Variables Definition
 
-        # All objects from Source domain
-        Write-Verbose -Message 'Getting the list of ALL semi-privileged groups.'
-        $AllPrivGroups = Get-ADGroup -Filter * -Properties SamAccountName -SearchBase $PsBoundParameters['AdminGroupsDN'] -ErrorAction Stop
+        # parameters variable for splatting CMDlets
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
-        # Check if exclusion list is provided
-        if ($PSBoundParameters['ExcludeList']) {
-            # If the Administrator does not exist, add it
-            If (-not($ExcludeList.Contains('Administrator'))) {
-                $ExcludeList.Add('Administrator')
-            }
 
-            # If the TheGood not exist, add it
-            If (-not($ExcludeList.Contains('TheGood'))) {
-                $ExcludeList.Add('TheGood')
-            }
-
-            # If the TheUgly not exist, add it
-            If (-not($ExcludeList.Contains('TheUgly'))) {
-                $ExcludeList.Add('TheUgly')
-            }
-
-            # If the krbtgt not exist, add it
-            If (-not($ExcludeList.Contains('krbtgt'))) {
-                $ExcludeList.Add('krbtgt')
-            }
+        # If parameter is parsed, initialize variable to be used by default objects
+        If (-Not $PSBoundParameters.ContainsKey('ExcludeList')) {
+            $ExcludeList = [System.Collections.Generic.List[String]]::New()
         } #end If
+
+        $wellKnownUserSids = @{
+            'S-1-5-21-*-500' = 'Administrator'
+            'S-1-5-21-*-502' = 'krbtgt'
+        }
+
+        foreach ($sid in $wellKnownUserSids.Keys) {
+            # For these SIDs, we always need to use the wildcard approach
+            $users = Get-ADUser -Filter * | Where-Object -FilterScript { $_.SID -like $sid }
+
+            foreach ($item in $users) {
+                If ($item.SamAccountName -notin $ExcludeList) {
+                    $ExcludeList.Add($item.SamAccountName) | Out-Null
+                }
+            } # end foreach
+
+        } #end Foreach
 
         # Item Counter
         [int]$i = 0
@@ -122,10 +123,24 @@
         # Removed Users counter
         [int]$userRemovedCount = 0
 
-        Write-Verbose ('Iterate through each item returned. Total found: {0}' -f $TotalObjectsFound)
     } #end Begin
 
     Process {
+        # All objects from Source domain
+        Write-Verbose -Message 'Getting the list of ALL semi-privileged groups.'
+        $Splat = @{
+            Filter      = '*'
+            Properties  = 'SamAccountName'
+            SearchBase  = $PsBoundParameters['AdminGroupsDN']
+            ErrorAction = 'Stop'
+        }
+        $AllPrivGroups = Get-ADGroup @Splat
+
+        $TotalObjectsFound = $AllPrivGroups.Count
+        [int]$userRemovedCount = 0
+
+        Write-Verbose -Message ('Iterate through each item returned. Total found: {0}' -f $TotalObjectsFound)
+
         # Iterate all found groups
         Foreach ($group in $AllPrivGroups) {
             $i ++
@@ -138,19 +153,36 @@
             }
             Write-Progress @parameters
 
-            # Get members of current group
-            $groupMembers = Get-ADGroupMember -Identity $group -ErrorAction Continue | Where-Object { $_.objectClass -eq 'user' }
+            # Exclude "Domain Users" group
+            If (-Not ($group.SID.value -like '*-513')) {
 
-            # iterate group members
-            foreach ($member in $groupMembers) {
+                # Get members of current group
+                $Splat = @{
+                    Identity    = $group
+                    ErrorAction = 'Continue'
+                }
+                $groupMembers = Get-ADGroupMember @Splat | Where-Object { $_.objectClass -eq 'user' }
 
-                # process exclude list, ending on _T0,_T1 & _T2 and ShouldProcess
-                if ($ShouldProcess -and $member.SamAccountName -notmatch '_T[0-2]$' -and $ExcludeList -notcontains $member.SamAccountName) {
+                # iterate group members
+                foreach ($member in $groupMembers) {
 
-                    Remove-ADGroupMember -Identity $group -Members $member -Confirm:$false -ErrorAction Continue
-                    Write-Verbose ('Removed unauthorized user {0} from group {1}.' -f $member.SamAccountName, $group.SamAccountName)
-                    $userRemovedCount++
-                } #end If
+                    if ($member.SamAccountName -notmatch '_T[0-2]$' -and $ExcludeList -notcontains $member.SamAccountName) {
+
+                        if ($PSCmdlet.ShouldProcess("$($member.SamAccountName) in $($group.SamAccountName)", 'Remove unauthorized member')) {
+
+                            Remove-ADGroupMember -Identity $group -Members $member -Confirm:$false -ErrorAction Stop
+
+                            Write-Verbose -Message ('
+                                Removed unauthorized user {0}
+                                from group {1}' -f
+                                $member.SamAccountName, $group.SamAccountName
+                            )
+
+                            $userRemovedCount++
+                        } #end If ShouldProcess
+                    } #end If
+
+                } #end If "Domain Users"
             } #end ForEach
         } #end ForEach
 
@@ -158,14 +190,17 @@
 
     End {
         $Constants.NL
-        Write-Verbose 'A semi-privileged and/or Privileged group can ONLY contain semi-privileged and/or Privileged accounts.'
-        Write-Verbose 'Any userID which does not complies with this statement, will automatically be removed from the group.'
-        $Constants.NL
-        Write-Verbose ('{0} users were removed from Privileged/Semi-Privileged groups.' -f $userRemovedCount)
+        Write-Verbose ('
+            A semi-privileged and/or Privileged group can ONLY contain semi-privileged and/or Privileged accounts.
+            Any userID which does not complies with this statement, will automatically be removed from the group.
 
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished setting semi-privileged and/or Privileged group housekeeping."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+            {0} users were removed from Privileged/Semi-Privileged groups.' -f
+            $userRemovedCount
+        )
+
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'setting semi-privileged and/or Privileged group housekeeping.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }

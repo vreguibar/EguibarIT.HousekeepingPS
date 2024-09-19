@@ -8,14 +8,17 @@
             OU belongs. If any of the groups are outside of the designated 'Admin Area' or
             'BuiltIn' containers, the user is removed from those groups.
 
-        .EXAMPLE
-            Set-NonPrivilegedGroupHousekeeping "OU=Users,OU=Admin,DC=EguibarIT,DC=local"
-
-        .EXAMPLE
-            Set-NonPrivilegedGroupHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local
-
         .PARAMETER AdminUsersDN
-            Admin User Account OU Distinguished Name (ej. "OU=Users,OU=Admin,DC=EguibarIT,DC=local").
+            Admin User Account OU Distinguished Name (e.g., "OU=Users,OU=Admin,DC=EguibarIT,DC=local").
+
+        .PARAMETER Tier0RootOuDN
+            Tier0 Root OU Distinguished Name (e.g., "OU=Admin,DC=EguibarIT,DC=local").
+
+        .EXAMPLE
+            Set-NonPrivilegedGroupHousekeeping "OU=Users,OU=Admin,DC=EguibarIT,DC=local" "OU=Admin,DC=EguibarIT,DC=local"
+
+        .EXAMPLE
+            Set-NonPrivilegedGroupHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local" -Tier0RootOuDN "OU=Admin,DC=EguibarIT,DC=local"
 
         .NOTES
             Used Functions:
@@ -42,45 +45,73 @@
 
     Param (
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Admin User Account OU Distinguished Name (ej. "OU=Users,OU=Admin,DC=EguibarIT,DC=local").',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [String]
-        $AdminUsersDN
+        $AdminUsersDN,
+
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Tier0 root OU Distinguished Name (ej. "OU=Admin,DC=EguibarIT,DC=local").',
+            Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
+        [Alias('RootOU', 'Admin', 'AdminArea')]
+        [String]
+        $Tier0RootOuDN
+
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
         )
         Write-Verbose -Message $txt
 
-        # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule ActiveDirectory -Force -Verbose:$false
 
         ##############################
         # Variables Definition
 
+        # parameters variable for splatting CMDlets
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
         # Get all semi-privileged users from Admin Area
-        $AllAdmin = Get-ADUser -Filter * -Properties SamAccountName, MemberOf -SearchBase ($PSBoundParameters['AdminUsersDN'])
+        try {
+            $Splat = @{
+                Filter     = '*'
+                Properties = 'SamAccountName', 'MemberOf'
+                SearchBase = $PSBoundParameters['AdminUsersDN']
+            }
+            $AllAdmin = Get-ADUser @Splat
+        } catch {
+            Write-Error -Message ('Error retrieving users from OU: {0}' -f $_)
+            return
+        }
 
-        $Constants.NL
-        Write-Verbose ('Found {0} semi privileged accounts (_T0, _T1, _T2)' -f $AllAdmin.Count)
+        Write-Verbose -Message ('Found {0} semi privileged accounts (_T0, _T1, _T2)' -f $AllAdmin.Count)
 
-        $i = 0
+        # Initialize counter
+        [int]$i = 0
+
     } #end Begin
 
     Process {
 
         # Iterate through all semi-privileged users
         Foreach ($admin in $allAdmin) {
+            $i++
 
             # Display the progress bar
             $Splat = @{
@@ -94,13 +125,36 @@
             Foreach ($Group in $admin.MemberOf) {
 
                 # Check the distinguished name of the group. If not part of Admin area and/or BuiltIn continue
-                if (-not($group.Contains('OU=ADMINISTRATION,{0}' -f $Variables.AdDn) -or $group.Contains('CN=Builtin,{0}' -f $Variables.AdDn))) {
+                if (-not (
+                        ($Group -match $PSBoundParameters['Tier0RootOuDN']) -or
+                        ($Group -match 'CN=Builtin')
+                    )) {
 
                     # Remove the user from the non-privileged group.
                     if ($PSCmdlet.ShouldProcess("$($adminUser.SamAccountName) in $group", 'Remove from group')) {
 
-                        Remove-ADGroupMember -Identity $Group -Members $admin.SamAccountName -Confirm:$False
-                        Write-Verbose -Message ('Semi-Privileged user {0} was removed from non-privileged group {1}' -f $admin.SamAccountName, $Group)
+                        try {
+
+                            $Splat = @{
+                                Identity = $Group
+                                Members  = $admin.SamAccountName
+                                Confirm  = $False
+                            }
+                            Remove-ADGroupMember @Splat
+
+                            Write-Verbose -Message ('
+                                Semi-Privileged user {0}
+                                was removed from non-privileged group {1}' -f
+                                $admin.SamAccountName, $Group
+                            )
+
+                        } catch {
+                            Write-Error -Message ('
+                                Error removing {0}
+                                from group {1}: {2}' -f
+                                $admin.SamAccountName, $Group, $_
+                            )
+                        }
 
                     } #end If
 
@@ -113,9 +167,9 @@
     } #end Process
 
     End {
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished removing Semi-Privileged user from non-compliant groups.."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'removing Semi-Privileged user from non-compliant groups'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }

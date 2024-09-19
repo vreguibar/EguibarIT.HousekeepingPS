@@ -19,6 +19,9 @@
             This example will classify users in the specified OU and disable non-standard users.
 
         .EXAMPLE
+            Set-PrivilegedUsersHousekeeping -AdminUsersDN 'OU=Users,OU=Admin,DC=EguibarIT,DC=local' -Tier0Group 'SG_Tier0Admins' -Tier1Group 'SG_Tier1Admins' -Tier2Group 'SG_Tier2Admins' -ExcludeList @('TheGood', 'TheUgly') -DisableNonStandardUsers -Verbose
+
+        .EXAMPLE
             Set-PrivilegedUsersHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local"
 
         .NOTES
@@ -45,11 +48,15 @@
                 http://www.eguibarit.com
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    [OutputType([void])]
 
     Param (
 
         #Param1
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Admin User Account OU Distinguished Name.',
             Position = 0)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
@@ -57,41 +64,44 @@
         [String]
         $AdminUsersDN,
 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Group containing all Tier0 Semi-Privileged/Privileged users.',
             Position = 1)]
         $Tier0Group,
 
-        [Parameter(Mandatory = $true,
+        [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $false,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Group containing all Tier1 Semi-Privileged/Privileged users.',
             Position = 2)]
         $Tier1Group,
 
-        [Parameter(Mandatory = $true,
+        [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $false,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'Group containing all Tier2 Semi-Privileged/Privileged users.',
             Position = 3)]
         $Tier2Group,
 
-        [Parameter(Mandatory = $true,
+        [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $false,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'User list to be excluded from this process.',
             Position = 4)]
-        [System.Collections.ArrayList]
+        [System.Collections.Generic.List[string]]
         $ExcludeList,
 
         #Param2
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $false,
+            ValueFromRemainingArguments = $true,
             HelpMessage = 'If present, will disable all Non-Standard users.',
             Position = 5)]
         [switch]
@@ -102,86 +112,97 @@
         $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
         )
         Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule ActiveDirectory
 
         ##############################
         # Variables Definition
 
-        # Check if exclusion list is provided
-        if ($PSBoundParameters['ExcludeList']) {
-            # If the Administrator does not exist, add it
-            $TmpAdmin = Get-ADUser -Filter * | Where-Object { $_.SID -like 'S-1-5-21-*-500' }
-            If (-not($ExcludeList.Contains($TmpAdmin.samAccountName))) {
-                $ExcludeList.Add($TmpAdmin.samAccountName)
-            } #end If
+        # parameters variable for splatting CMDlets
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
-            # If the TheGood not exist, add it
-            If (-not($ExcludeList.Contains('TheGood'))) {
-                $ExcludeList.Add('TheGood')
-            } #end If
+        [int]$i = 0
 
-            # If the TheUgly not exist, add it
-            If (-not($ExcludeList.Contains('TheUgly'))) {
-                $ExcludeList.Add('TheUgly')
-            } #end If
-
-            # If the krbtgt not exist, add it
-            If (-not($ExcludeList.Contains('krbtgt'))) {
-                $ExcludeList.Add('krbtgt')
-            } #end If
+        # If parameter is parsed, initialize variable to be used by default objects
+        If (-Not $PSBoundParameters.ContainsKey('ExcludeList')) {
+            $ExcludeList = [System.Collections.Generic.List[String]]::New()
         } #end If
+
+        $wellKnownUserSids = @{
+            'S-1-5-21-*-500' = 'Administrator'
+            'S-1-5-21-*-502' = 'krbtgt'
+        }
+
+        foreach ($sid in $wellKnownUserSids.Keys) {
+            # For these SIDs, we always need to use the wildcard approach
+            $users = Get-ADUser -Filter * | Where-Object -FilterScript { $_.SID -like $sid }
+
+            foreach ($item in $users) {
+                If ($item.SamAccountName -notin $ExcludeList) {
+                    $ExcludeList.Add($item.SamAccountName) | Out-Null
+                }
+            } # end foreach
+
+        } #end Foreach
+
 
         # Fetch all user accounts in the given OU
         try {
-            $AllPrivUsers = Get-ADUser -Filter * -SearchBase $PsBoundParameters['AdminUsersDN'] -ErrorAction Stop
+            $Splat = @{
+                Filter      = '*'
+                Properties  = 'EmployeeType'
+                SearchBase  = $PsBoundParameters['AdminUsersDN']
+                ErrorAction = 'Stop'
+            }
+            $AllPrivUsers = Get-ADUser @Splat
         } catch {
-            Write-Error "Failed to retrieve users: $_"
+            Write-Error -Message ('Failed to retrieve users: {0}' -f $_)
             return
         } #end Try-Catch
 
-        Write-Verbose ('Found {0} semi privileged accounts (_T0, _T1, _T2) in {1}' -f $AllPrivUsers.Count, $PsBoundParameters['AdminUsersDN'])
+        Write-Verbose -Message ('
+            Found {0} semi privileged accounts (_T0, _T1, _T2)
+            in {1}' -f
+            $AllPrivUsers.Count, $PsBoundParameters['AdminUsersDN']
+        )
 
-        # Get tiering groups
-        $Tier0Group = Get-AdObjectType -Identity $PsBoundParameters['Tier0Group']
+        # Initialize and Get each tier group
+        $tierGroups = @{
+            T0 = Get-AdObjectType -Identity $PsBoundParameters['Tier0Group']
 
-        If ($PsBoundParameters['Tier1Group']) {
-            $Tier1Group = Get-AdObjectType -Identity $PsBoundParameters['Tier1Group']
+            T1 = if ($Tier1Group) {
+                Get-AdObjectType -Identity $PsBoundParameters['Tier1Group']
+            }
+
+            T2 = if ($Tier2Group) {
+                Get-AdObjectType -Identity $PsBoundParameters['Tier2Group']
+            }
         }
-        If ($PsBoundParameters['Tier2Group']) {
-            $Tier2Group = Get-AdObjectType -Identity $PsBoundParameters['Tier2Group']
-        }
 
-        [int]$T0 = 0
-        [int]$T1 = 0
-        [int]$T2 = 0
-        [int]$i = 0
+        # Define group per each tier to hold members
+        $tierMembers = @{
+            T0 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            T1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            T2 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        } # end tierMembers
 
-        # Define an empty array
-        $T0Members = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $T1Members = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $T2Members = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+        # Populate existing members of tier groups
+        foreach ($tier in $tierGroups.Keys) {
+            if ($tierGroups[$tier]) {
+                Get-ADGroupMember -Identity $tierGroups[$tier] | ForEach-Object {
+                    $tierMembers[$tier].Add($_.SamAccountName)
+                }
+            } #end If
+        } #end Foreach
+
     } #end Begin
 
     Process {
-        # Get T0 Admin members
-        Get-ADGroupMember -Identity $Tier0Group | ForEach-Object { $T0Members.Add($_.sAMAccountName) }
-
-        # Get T1 Admin members
-        If ($PsBoundParameters['Tier1Group']) {
-            Get-ADGroupMember -Identity $Tier1Group | ForEach-Object { $T1Members.Add($_.sAMAccountName) }
-        } #end If
-
-        # Get T2 Admin members
-        If ($PsBoundParameters['Tier2Group']) {
-            Get-ADGroupMember -Identity $Tier2Group | ForEach-Object { $T2Members.Add($_.sAMAccountName) }
-        } #end If
 
         # Iterate all found users
         Foreach ($user in $AllPrivUsers) {
@@ -195,63 +216,66 @@
             }
             Write-Progress @parameters
 
-            if ($ExcludeList -notcontains $user.SamAccountName) {
+            # Check Exclude list
+            if ($user.SamAccountName -in $ExcludeList) {
+                continue
+            }
 
-                # Get last 3 characters of samAccountName which indicates tier
-                $Last3Char = $user.SamAccountName -replace '.*(_T[0-2])$', '$1'
+            # Check if EmployeeType is defined. Otherwise use last 3 characters of SamAccountName
+            $tier = if ($user.EmployeeType -in @('T0', 'T1', 'T2')) {
+                $user.EmployeeType
+            } else {
+                $user.SamAccountName -replace '.*(_T[0-2])$', '$1' -replace '_', ''
+            } #end If-Else
 
-                switch ($Last3Char) {
-                    '_T0' {
-                        If ($T0Members -notcontains $user.SamAccountName -and $PSCmdlet.ShouldProcess($user.SamAccountName, 'Add to Tier0')) {
-                            Add-ADGroupMember -Identity $Tier0Group -Members $user.SamAccountName
-                            Write-Verbose ('Tier0 - {0}' -f $user.SamAccountName)
-                            $T0 ++
-                            $T0Members.Add($user.samAccountName)
-                        } #end If
-                    } #end _T0
+            # Check compliance on the user. Disable if needed.
+            if ($tier -notin @('T0', 'T1', 'T2')) {
 
-                    '_T1' {
-                        If ($T1Members -notcontains $user.SamAccountName -and $PSCmdlet.ShouldProcess($user.SamAccountName, 'Add to Tier1')) {
-                            Add-ADGroupMember -Identity $Tier1Group -Members $user.SamAccountName
-                            Write-Verbose ('Tier1 - {0}' -f $user.SamAccountName)
-                            $T1 ++
-                            $T1Members.Add($user.samAccountName)
-                        } #end If
-                    } #end _T1
+                Write-Warning -Message ('
+                    User {0}
+                    has an invalid tier: {1}' -f
+                    $user.SamAccountName, $tier
+                )
+                if ($DisableNonStandardUsers -and $PSCmdlet.ShouldProcess($user.SamAccountName, 'Disable non-standard user')) {
 
-                    '_T2' {
-                        If ($T2Members -notcontains $user.SamAccountName -and $PSCmdlet.ShouldProcess($user.SamAccountName, 'Add to Tier2')) {
-                            Add-ADGroupMember -Identity $Tier2Group -Members $user.SamAccountName
-                            Write-Verbose ('Tier2 - {0}' -f $user.SamAccountName)
-                            $T2 ++
-                            $T2Members.Add($user.samAccountName)
-                        } #end If
-                    } #end _T2
+                    Disable-ADAccount -Identity $user
+                    Write-Verbose -Message ('Account {0} was disabled due to compliance.' -f $user.SamAccountName)
 
-                    default {
-                        Write-Verbose ('{0} - To Be Removed from this OU' -f $user.SamAccountName)
-                        If ($PsBoundParameters['DisableNonStandardUsers'] -and $PSCmdlet.ShouldProcess($user.SamAccountName, 'Disable non-standard user')) {
-                            Disable-ADAccount -Identity $user
-                            Write-Verbose ('Account {0} was disabled due compliance.' -f $user.SamAccountName)
-                        } #end If
-                    } #end default
-                } #end Switch
-            } #end If
+                } #end If
+                continue
+            } #end If-Else
+
+            # Add Semi-Privileged users to the corresponding group
+            if (-not $tierMembers[$tier].Contains($user.SamAccountName)) {
+
+                #Get current group
+                $groupName = $tierGroups[$tier].Name
+
+                if ($PSCmdlet.ShouldProcess($user.SamAccountName, "Add to $groupName")) {
+
+                    # Add user to the group
+                    Add-ADGroupMember -Identity $tierGroups[$tier] -Members $user
+
+                    Write-Verbose -Message ('{0} - {1} added to {2}' -f $tier, $user.SamAccountName, $groupName)
+
+                    $tierMembers[$tier].Add($user.SamAccountName)
+
+                } # end if
+            } # end if
+
         } #end ForEach
     } #end Process
 
     End {
-        $Constants.NL
-        Write-Verbose 'Added new semi-privileged users'
-        Write-Verbose '--------------------------------'
-        Write-Verbose ('Admin Area   / Tier0: {0}' -f $T0)
-        Write-Verbose ('Servers Area / Tier1: {0}' -f $T1)
-        Write-Verbose ('Sites Area   / Tier2: {0}' -f $T2)
-        $Constants.NL
+        $summary = $tierMembers.GetEnumerator() | ForEach-Object {
+            '   {0} Members: {1}' -f $_.Key, $_.Value.Count
+        } # end ForEach-Object
+        Write-Verbose -Message ('Summary:{0}{1}' -f $Constants.NL, ($summary -join $Constants.NL))
 
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished setting semi-privileged and/or Privileged users housekeeping."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'setting semi-privileged and/or Privileged users housekeeping.'
+        )
+        Write-Verbose -Message $txt
     } #end End
-}
+} #end Function
