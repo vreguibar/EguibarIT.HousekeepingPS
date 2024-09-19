@@ -170,10 +170,10 @@
     } #end Process
 
     end {
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished setting Infrastructure Servers / PAWs housekeeping."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'setting group for Local Administrators.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 } #end function Set-AdLocalAdminHousekeeping
 
