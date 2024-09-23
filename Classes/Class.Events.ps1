@@ -60,7 +60,25 @@
         Sensitive information is masked before logging to prevent leaks of confidential data.
 #>
 
-Add-Type -Language CSharp -TypeDefinition @'
+
+# Function to check if a class is already loaded
+function Test-ClassExist {
+    param(
+        [string]$ClassName
+    )
+
+    # Try to get the type by its full name
+    $type = [Type]::GetType($ClassName, $false, $false)
+
+    # Return true if the type exists, otherwise false
+    return [bool]$type
+}
+
+
+# Define the class only if it doesn't already exist
+if (-not (Test-ClassExist 'EventIdInfo')) {
+
+    Add-Type -Language CSharp -TypeDefinition @'
 
 using System;
 using System.Diagnostics;
@@ -129,6 +147,9 @@ public enum EventID
     GetGroupMembership = 2200,
     SetGroupMembership = 2300,
 
+    CreateScheduledTask = 2400,
+    ChangeScheduledTask = 2410,
+    DeleteScheduledTask = 2420,
 
 
 
@@ -371,3 +392,5 @@ public static class EventIDs
 
 
 '@
+
+} #end If Test-ClassExist

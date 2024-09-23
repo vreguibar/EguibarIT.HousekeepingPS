@@ -131,7 +131,7 @@
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.Header -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
@@ -143,6 +143,9 @@
 
         ##############################
         # Variables Definition
+
+        $Preference = $VerbosePreference
+        $VerbosePreference = 'SilentlyContinue'
 
         $functionName = $MyInvocation.MyCommand.Name
 
@@ -226,7 +229,7 @@
             $availableModule = Get-Module -Name $Name -ErrorAction SilentlyContinue -Verbose:$PSBoundParameters['Verbose']
 
             if (-not $availableModule) {
-                throw ('Module "{0}" is not installed. Please install the module before importing.' -f $Name)
+                Write-Error -Message ('Module "{0}" is not installed. Please install the module before importing.' -f $Name)
             } #end If
 
 
@@ -250,6 +253,10 @@
 
                 Write-Verbose -Message ('[{0}] Successfully imported module {1}' -f $functionName, $Name)
 
+                $x = 10
+                if ($x -eq $null) {
+                    $true
+                }
 
                 if ($PassThru) {
                     return $importedModule
@@ -262,13 +269,15 @@
 
         } catch {
             Write-Error -Message ('[{0}] Error importing module {1}: {2}' -f $functionName, $Name, $_)
-            throw
+            #throw
         } #end Try-Catch
 
     } #end Process
 
     End {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+        $VerbosePreference = $Preference
+
+        $txt = ($Variables.Footer -f $MyInvocation.InvocationName,
             'importing module.'
         )
         Write-Verbose -Message $txt
