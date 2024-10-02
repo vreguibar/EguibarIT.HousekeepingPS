@@ -253,11 +253,6 @@
 
                 Write-Verbose -Message ('[{0}] Successfully imported module {1}' -f $functionName, $Name)
 
-                $x = 10
-                if ($x -eq $null) {
-                    $true
-                }
-
                 if ($PassThru) {
                     return $importedModule
                 } #end If
