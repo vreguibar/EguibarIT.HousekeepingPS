@@ -113,7 +113,7 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Distinguished Name of the container where the Admin Accounts are located.',
             Position = 2)]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]DN -ObjectDN $_ })]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [string]
         $AdminUsersDN,

@@ -64,116 +64,117 @@
             ValueFromRemainingArguments = $false,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 1)]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
-        [Alias('DN', 'DistinguishedName')]
-        [String]
-        $LDAPpath
-    )
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]DN -ObjectDN $_ 
+    })]
+[Alias('DN', 'DistinguishedName')]
+[String]
+$LDAPpath
+)
 
-    begin {
-        $txt = ($Variables.HeaderHousekeeping -f
+begin {
+    $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
+        $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+    )
+    Write-Verbose -Message $txt
 
-        # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+    # Verify the Active Directory module is loaded
+    if (-not (Get-Module -Name ActiveDirectory)) {
+        Import-Module ActiveDirectory -Force -Verbose:$false
+    } #end If
 
-        ##############################
-        # Variables Definition
+    ##############################
+    # Variables Definition
 
-        # explicit type declaration of HashTable
-        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
-
-
-        # Find a domain controller in the specified domain
-        $domainController = Get-ADDomainController -Discover -DomainName $PsBoundParameters['Domain']
-
-        if (-not $domainController) {
-            Write-Error 'No domain controllers found for domain {0}' -f $PsBoundParameters['Domain']
-            return
-        } #end If
-        Write-Verbose -Message ('Using domain controller {0} for domain operations.' -f $($domainController.HostName))
+    # explicit type declaration of HashTable
+    [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
 
-        # Get all computer objects categorized as servers, excluding 'Domain Controllers'
-        $servers = Get-ADComputer -Filter { OperatingSystem -Like '*Server*' -and PrimaryGroupID -ne 516 } -Server $($domainController.HostName) -Property Name
-        Write-Verbose -Message ('Retrieved {0} servers from the domain.' -f $servers.Count)
+    # Find a domain controller in the specified domain
+    $domainController = Get-ADDomainController -Discover -DomainName $PsBoundParameters['Domain']
 
-    } #end Begin
+    if (-not $domainController) {
+        Write-Error 'No domain controllers found for domain {0}' -f $PsBoundParameters['Domain']
+        return
+    } #end If
+    Write-Verbose -Message ('Using domain controller {0} for domain operations.' -f $($domainController.HostName))
 
-    process {
-        try {
 
-            # Ensure each server has a corresponding Admin_<HostName> group
-            foreach ($server in $servers) {
+    # Get all computer objects categorized as servers, excluding 'Domain Controllers'
+    $servers = Get-ADComputer -Filter { OperatingSystem -Like '*Server*' -and PrimaryGroupID -ne 516 } -Server $($domainController.HostName) -Property Name
+    Write-Verbose -Message ('Retrieved {0} servers from the domain.' -f $servers.Count)
 
-                # Find the corresponding Administrative group name
-                $groupName = 'Admin_{0}' -f $server.Name
+} #end Begin
 
-                # Get the group. If NotFound exception variable will be Null
-                $group = Get-ADGroup -Filter { Name -eq $groupName } -Server $($domainController.HostName) -ErrorAction SilentlyContinue
+process {
+    try {
 
-                if (-not $group) {
-                    if ($PSCmdlet.ShouldProcess($groupName, 'Create group')) {
-                        $Splat = @{
-                            Name          = $groupName
-                            GroupCategory = 'Security'
-                            GroupScope    = 'Global'
-                            DisplayName   = '{0} Local Administrators members' -f $server.Name
-                            Path          = $PsBoundParameters['LDAPPath']
-                            Description   = 'Local Admin group for {0}' -f $server.Name
-                            Server        = $($domainController.HostName)
-                        }
-                        New-ADGroup @Splat
-                        Write-Verbose -Message ('Created group {0} at {1}.' -f $groupName, $PsBoundParameters['LDAPPath'])
-                    } #end If
+        # Ensure each server has a corresponding Admin_<HostName> group
+        foreach ($server in $servers) {
+
+            # Find the corresponding Administrative group name
+            $groupName = 'Admin_{0}' -f $server.Name
+
+            # Get the group. If NotFound exception variable will be Null
+            $group = Get-ADGroup -Filter { Name -eq $groupName } -Server $($domainController.HostName) -ErrorAction SilentlyContinue
+
+            if (-not $group) {
+                if ($PSCmdlet.ShouldProcess($groupName, 'Create group')) {
+                    $Splat = @{
+                        Name          = $groupName
+                        GroupCategory = 'Security'
+                        GroupScope    = 'Global'
+                        DisplayName   = '{0} Local Administrators members' -f $server.Name
+                        Path          = $PsBoundParameters['LDAPPath']
+                        Description   = 'Local Admin group for {0}' -f $server.Name
+                        Server        = $($domainController.HostName)
+                    }
+                    New-ADGroup @Splat
+                    Write-Verbose -Message ('Created group {0} at {1}.' -f $groupName, $PsBoundParameters['LDAPPath'])
                 } #end If
-            } #end ForEach
+            } #end If
+        } #end ForEach
 
-            # Check all groups on given LDAPPAth for obsolete entries
-            $adminGroups = Get-ADGroup -Filter * -Server $($domainController.HostName) -SearchBase $PsBoundParameters['LDAPPath'] -Properties Members
+        # Check all groups on given LDAPPAth for obsolete entries
+        $adminGroups = Get-ADGroup -Filter * -Server $($domainController.HostName) -SearchBase $PsBoundParameters['LDAPPath'] -Properties Members
 
-            #iterate all found groups
-            foreach ($group in $adminGroups) {
+        #iterate all found groups
+        foreach ($group in $adminGroups) {
 
-                # Exclude groups that do not follow the naming convention
-                if ($group.Name -match '^Admin_[A-Za-z0-9_-]+$') {
+            # Exclude groups that do not follow the naming convention
+            if ($group.Name -match '^Admin_[A-Za-z0-9_-]+$') {
 
-                    # Extract server name from group name
-                    $hostName = $group.Name -replace '^Admin_', ''
+                # Extract server name from group name
+                $hostName = $group.Name -replace '^Admin_', ''
 
-                    # Find the corresponding server object
-                    $server = $servers | Where-Object { $_.Name -eq $hostName }
+                # Find the corresponding server object
+                $server = $servers | Where-Object { $_.Name -eq $hostName }
 
-                    if (-not $server) {
+                if (-not $server) {
 
-                        if ($PSCmdlet.ShouldProcess($group.Name, 'Delete group')) {
-                            Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                            Write-Verbose -Message ('Deleted group {0} because the corresponding server no longer exists.' -f $group.Name)
-                        } #end If
-
+                    if ($PSCmdlet.ShouldProcess($group.Name, 'Delete group')) {
+                        Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
+                        Write-Verbose -Message ('Deleted group {0} because the corresponding server no longer exists.' -f $group.Name)
                     } #end If
-                } else {
-                    # Remove this group because it does not follow naming convention, or it does not belongs to this OU.
-                    Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                    Write-Verbose -Message ('Deleted group {0} because does not follow the naming conventions.' -f $group.Name)
-                }#end If
-            } #end ForEach
-        } catch {
-            Write-Error -Message ('An error occurred: {0}' -f $_)
-        } #end Try-Catch
-    } #end Process
 
-    end {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'setting group for Local Administrators.'
-        )
-        Write-Verbose -Message $txt
-    } #end End
+                } #end If
+            } else {
+                # Remove this group because it does not follow naming convention, or it does not belongs to this OU.
+                Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
+                Write-Verbose -Message ('Deleted group {0} because does not follow the naming conventions.' -f $group.Name)
+            }#end If
+        } #end ForEach
+    } catch {
+        Write-Error -Message ('An error occurred: {0}' -f $_)
+    } #end Try-Catch
+} #end Process
+
+end {
+    $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+        'setting group for Local Administrators.'
+    )
+    Write-Verbose -Message $txt
+} #end End
 } #end function Set-AdLocalAdminHousekeeping
 

@@ -57,7 +57,7 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 0)]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ })]
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]DN -ObjectDN $_ })]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [String]
         $AdminGroupsDN,
