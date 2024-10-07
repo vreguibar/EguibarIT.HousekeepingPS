@@ -31,9 +31,11 @@
     [CmdletBinding(ConfirmImpact = 'Low', SupportsShouldProcess = $false)]
     [OutputType([bool])]
 
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, ValueFromRemainingArguments = $false,
+    param (
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'String to be validated as Global Unique Identifier (GUID)',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
@@ -43,27 +45,14 @@
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+
+        ##############################
+        # Module imports
+
+        ##############################
+        # Variables Definition
 
         $isValid = $false
-
-        <# Define GUID Regex
-        Active Directory GUID is represented as a 128-bit number, typically displayed as a
-        string of 32 hexadecimal characters, such as "550e8400-e29b-41d4-a716-446655440000"
-            ^ asserts the start of the string.
-            [0-9a-fA-F] matches any hexadecimal digit.
-            {8} specifies that the preceding character class should appear exactly 8 times.
-            - matches the hyphen character literally.
-            {4} specifies that the preceding character class should appear exactly 4 times.
-            {12} specifies that the preceding character class should appear exactly 12 times.
-            $ asserts the end of the string.
-        #>
-        [regex]$guidNameRegex = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 
         Write-Verbose 'Begin block: Regex pattern for GUID validation initialized.'
 
@@ -75,27 +64,22 @@
 
             # Perform the actual validation
             #$isValid = $ObjectDN -match $distinguishedNameRegex
-            $isValid = $guidNameRegex.IsMatch($ObjectGUID)
+            $isValid = $ObjectGUID -match $Constants.GuidRegEx
 
             # Provide verbose output
             if ($PSCmdlet.MyInvocation.BoundParameters['Verbose']) {
-                Write-Verbose -Message ('DistinguishedName validation result: {0}' -f $isValid)
+                Write-Verbose -Message ('GUID validation result: {0}' -f $isValid)
             } #end If
 
         } catch {
             # Handle exceptions gracefully
-            Get-CurrentErrorToDisplay -CurrentError $error[0]
+            Write-Error -Message 'Error when validating GUID'
+            Get-ErrorDetail -ErrorRecord $_
         } #end Try-Catch
 
     } #end Process
 
     end {
-
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished checking Global Unique Identifier (GUID)."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
-
         return $isValid
     } #end End
 } #end Function

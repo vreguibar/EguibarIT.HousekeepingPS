@@ -1,4 +1,4 @@
-function Test-IsValidDN {
+﻿function Test-IsValidDN {
     <#
         .SYNOPSIS
             Validates if the input string is a valid distinguished name (DN).
@@ -40,26 +40,17 @@ function Test-IsValidDN {
             HelpMessage = 'String to ve validated as DistinguishedName',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [Alias('DN', 'DistinguishedName', 'LDAPpath')]
+        [Alias('DN', 'DistinguishedName')]
         [string]
         $ObjectDN
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
 
         ##############################
-        # Variables Definition
-
+        # Module imports
+        # Initialize a boolean variable to store validation result
         [bool]$isValid = $false
-
-        # Define DN Regex
-        [regex]$distinguishedNameRegex = '^(?:(?<cn>CN=(?<name>(?:[^,]+|\,)+)),)?(?:(?<ou>OU=(?:[^,]+|\,)+,?)*)(?<dc>DC=(?:[^,]+|\,)+)(?:,DC=(?:[^,]+|\,)+)*$'
 
         Write-Verbose -Message 'Begin block: Regex pattern for DN validation initialized.'
 
@@ -71,7 +62,7 @@ function Test-IsValidDN {
 
             # Perform the actual validation
             #$isValid = $ObjectDN -match $distinguishedNameRegex
-            $isValid = $distinguishedNameRegex.IsMatch($ObjectDN)
+            $isValid = $ObjectDN -match $Constants.DnRegEx
 
             # Provide verbose output
             if ($PSCmdlet.MyInvocation.BoundParameters['Verbose']) {
@@ -80,17 +71,13 @@ function Test-IsValidDN {
 
         } catch {
             # Handle exceptions gracefully
-            Get-CurrentErrorToDisplay -CurrentError $error[0]
+            Write-Error -Message 'Error when validating DistinguishedName'
+            Get-ErrorDetail -ErrorRecord $_
         } #end Try-Catch
 
     } #end Process
 
     end {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'testing DistinguishedName.'
-        )
-        Write-Verbose -Message $txt
-
         return $isValid
     } #end End
 } #end Function
