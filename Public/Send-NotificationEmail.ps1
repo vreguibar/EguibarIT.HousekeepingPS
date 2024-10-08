@@ -1,116 +1,116 @@
 ﻿function Send-NotificationEmail {
-	param (
+    param (
 
-		[Parameter(Mandatory = $true,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'Email address of the recipient (to whom) of the email.',
-			Position = 0)]
-		[ValidateScript({ Test-EmailAddress -EmailAddress $_ })]
-		[ValidateNotNullOrEmpty()]
-		[Alias('Recipient', 'EmailTo')]
-		[string]
-		$To,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Email address of the recipient (to whom) of the email.',
+            Position = 0)]
+        [ValidateScript({ Test-EmailAddress -EmailAddress $_ })]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Recipient', 'EmailTo')]
+        [string]
+        $To,
 
-		[Parameter(Mandatory = $true,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'Subject of the email.',
-			Position = 1)]
-		[ValidateNotNullOrEmpty()]
-		[string]
-		$Subject,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Subject of the email.',
+            Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Subject,
 
-		[Parameter(Mandatory = $false,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'Body (content) of the email.',
-			Position = 2)]
-		[string]
-		$Body,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Body (content) of the email.',
+            Position = 2)]
+        [string]
+        $Body,
 
-		[Parameter(Mandatory = $true,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'FQDN or IP Address of the SMTP to be used for sending this email.',
-			Position = 3)]
-		[ValidateNotNullOrEmpty()]
-		[string]
-		$SmtpServer,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'FQDN or IP Address of the SMTP to be used for sending this email.',
+            Position = 3)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $SmtpServer,
 
-		[Parameter(Mandatory = $true,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'SMTP port to be used for sending this email.',
-			Position = 4)]
-		[ValidateNotNullOrEmpty()]
-		[int]
-		$SmtpPort,
+        [Parameter(Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'SMTP port to be used for sending this email.',
+            Position = 4)]
+        [ValidateNotNullOrEmpty()]
+        [int]
+        $SmtpPort,
 
-		[Parameter( Mandatory = $false,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'The username for SMTP authentication.',
-			Position = 5)]
-		[string]
-		$Username,
+        [Parameter( Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'The username for SMTP authentication.',
+            Position = 5)]
+        [string]
+        $Username,
 
-		[Parameter( Mandatory = $false,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'The password for SMTP authentication. This should be provided securely as [System.Security.SecureString].',
-			Position = 6)]
-		[System.Security.SecureString]
-		$Password,
+        [Parameter( Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'The password for SMTP authentication. This should be provided securely as [System.Security.SecureString].',
+            Position = 6)]
+        [System.Security.SecureString]
+        $Password,
 
-		[Parameter(Mandatory = $false,
-			ValueFromPipeline = $true,
-			ValueFromPipelineByPropertyName = $true,
-			ValueFromRemainingArguments = $true,
-			HelpMessage = 'Path to any required attachment.',
-			Position = 7)]
-		[string]
-		$AttachmentPath
-	)
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'Path to any required attachment.',
+            Position = 7)]
+        [string]
+        $AttachmentPath
+    )
 
-	Begin {
+    Begin {
 
-		$txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
-			$MyInvocation.Mycommand,
+            $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-		)
-		Write-Verbose -Message $txt
+        )
+        Write-Verbose -Message $txt
 
-		##############################
-		# Variables Definition
+        ##############################
+        # Variables Definition
 
-		$emailParams = @{
-			Recipient  = $PSBoundParameters['To']
-			From       = 'DelegationModel@EguibarIT.com'
-			Subject    = $PSBoundParameters['Subject']
-			SmtpServer = $PSBoundParameters['SmtpServer']
-			SmtpPort   = $PSBoundParameters['SmtpPort']
-			UseSsl     = $true
-			Username   = $PSBoundParameters['Username']
-			Password   = $PSBoundParameters['Password']
-		}
+        $emailParams = @{
+            Recipient  = $PSBoundParameters['To']
+            From       = 'DelegationModel@EguibarIT.com'
+            Subject    = $PSBoundParameters['Subject']
+            SmtpServer = $PSBoundParameters['SmtpServer']
+            SmtpPort   = $PSBoundParameters['SmtpPort']
+            UseSsl     = $true
+            Username   = $PSBoundParameters['Username']
+            Password   = $PSBoundParameters['Password']
+        }
 
-		if ($AttachmentPath -and (Test-Path $AttachmentPath)) {
-			$emailParams['Attachments'] = $AttachmentPath
-		}
+        if ($AttachmentPath -and (Test-Path $AttachmentPath)) {
+            $emailParams['Attachments'] = $AttachmentPath
+        }
 
-		if (-not $PSBoundParameters.ContainsKey('Body')) {
+        if (-not $PSBoundParameters.ContainsKey('Body')) {
 
-			# No body parsed. Using following body:
-			$Body = @'
+            # No body parsed. Using following body:
+            $Body = @'
 			<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -303,28 +303,28 @@
 			</body>
 			</html>
 '@
-			$emailParams.Add('Body', $Body)
-		} else {
-			$emailParams.Add('Body', $PSBoundParameters['Body'])
-		}
-	} #end Begin
+            $emailParams.Add('Body', $Body)
+        } else {
+            $emailParams.Add('Body', $PSBoundParameters['Body'])
+        }
+    } #end Begin
 
-	Process {
-		try {
+    Process {
+        try {
 
-			Send-Email @emailParams
+            Send-Email @emailParams
 
-			Write-Verbose -Message ('Sent email to {0}' -f $To)
-		} catch {
-			Write-Error -Message ('Error sending email to {0}: {1}' -f $To, $_)
-			throw
-		}
-	} #end Process
+            Write-Verbose -Message ('Sent email to {0}' -f $To)
+        } catch {
+            Write-Error -Message ('Error sending email to {0}: {1}' -f $To, $_)
+            throw
+        }
+    } #end Process
 
-	End {
-		$txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-			'sending notification email on Semi-Privileged user creation.'
-		)
-		Write-Verbose -Message $txt
-	} #end End
+    End {
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'sending notification email on Semi-Privileged user creation.'
+        )
+        Write-Verbose -Message $txt
+    } #end End
 }

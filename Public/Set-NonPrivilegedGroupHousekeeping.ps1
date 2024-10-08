@@ -52,7 +52,7 @@
             HelpMessage = 'Admin User Account OU Distinguished Name (ej. "OU=Users,OU=Admin,DC=EguibarIT,DC=local").',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]DN -ObjectDN $_ })]
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [String]
         $AdminUsersDN,
@@ -64,7 +64,7 @@
             HelpMessage = 'Tier0 root OU Distinguished Name (ej. "OU=Admin,DC=EguibarIT,DC=local").',
             Position = 1)]
         [ValidateNotNullOrEmpty()]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]DN -ObjectDN $_ })]
+        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
         [Alias('RootOU', 'Admin', 'AdminArea')]
         [String]
         $Tier0RootOuDN
