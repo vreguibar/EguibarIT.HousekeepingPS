@@ -199,10 +199,19 @@
                     return
                 } #end If
 
+                $NewTime = @{}
+
+                If ($PSBoundParameters['StartTime'] -contains ':') {
+                    $NewTime.Add('Hour', $PSBoundParameters['StartTime'].Split(':')[0])
+                    $NewTime.Add('Minute', $PSBoundParameters['StartTime'].Split(':')[1])
+                } else {
+                    $NewTime.Add('Hour', $PSBoundParameters['StartTime'])
+                }
+
                 $Splat = @{
                     Weekly      = $true
                     DaysOfWeek  = $PSBoundParameters['DaysOfWeek']
-                    At          = $PSBoundParameters['StartTime']
+                    At          = (Get-Date @NewTime).AddDays(1)
                     RandomDelay = (New-TimeSpan -Minutes 15)
                 }
                 $trigger = New-ScheduledTaskTrigger @Splat
@@ -227,17 +236,17 @@
                         Hour   = ([int]$PSBoundParameters['StartTime'].Split(':')[0])
                         Minute = ([int]$PSBoundParameters['StartTime'].Split(':')[1])
                     }
-                    $currentTriggerTime = (Get-Date @Splat).AddMinutes($i * $intervalMinutes)
+                    $currentTriggerTime = (Get-Date @Splat).AddDays(1).AddMinutes($i * $intervalMinutes)
 
                     $Splat = @{
                         Daily       = $true
-                        At          = $currentTriggerTime.ToString('HH:mm')
+                        At          = $currentTriggerTime
                         RandomDelay = (New-TimeSpan -Minutes 15)
                     }
                     $trigger = New-ScheduledTaskTrigger @Splat
                     $triggerList += $trigger
 
-                    Write-Verbose -Message ('Daily trigger created at {0}.' -f $currentTriggerTime.ToString('HH:mm'))
+                    Write-Verbose -Message ('Daily trigger created at "{0}".' -f $currentTriggerTime)
                 } #end for
             } #end Daily
 

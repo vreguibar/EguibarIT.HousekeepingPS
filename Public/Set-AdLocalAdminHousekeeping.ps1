@@ -79,9 +79,7 @@
         Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule ActiveDirectory -Verbose:$false
 
         ##############################
         # Variables Definition
@@ -101,7 +99,12 @@
 
 
         # Get all computer objects categorized as servers, excluding 'Domain Controllers'
-        $servers = Get-ADComputer -Filter { OperatingSystem -Like '*Server*' -and PrimaryGroupID -ne 516 } -Server $($domainController.HostName) -Property Name
+        $Splat = @{
+            Filter   = '( (OperatingSystem -Like "*Server*") -and (PrimaryGroupID -ne 516) )'
+            Server   = $domainController.HostName
+            Property = 'Name'
+        }
+        $servers = Get-ADComputer @Splat
         Write-Verbose -Message ('Retrieved {0} servers from the domain.' -f $servers.Count)
 
     } #end Begin
