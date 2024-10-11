@@ -7,6 +7,7 @@
         .DESCRIPTION
             This function processes a list of semi-privileged users in Active Directory, checks exclusion lists,
             and either disables or deletes users based on the associated non-privileged user's status.
+            The Semi-Privileged user account is associated to a Non-Privileged account by storing the Non-Privileged account SID into the employeeNumber attribute of the Semi-Privileged user.
 
         .PARAMETER AdminUsersDN
             The distinguished name (DN) of the OU that contains the semi-privileged users.
