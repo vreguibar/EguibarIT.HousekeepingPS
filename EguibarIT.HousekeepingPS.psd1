@@ -12,7 +12,7 @@
     RootModule            = 'EguibarIT.HousekeepingPS.psm1'
 
     # Version number of this module.
-    ModuleVersion         = '0.0.1'
+    ModuleVersion         = '0.34.2'
 
     # Supported PSEditions
     CompatiblePSEditions  = 'Desktop', 'Core'
@@ -30,7 +30,7 @@
     Copyright             = 'All rights reserved (c) 2024 - EguibarIT'
 
     # Description of the functionality provided by this module
-    Description           = 'Tasks and functions requiered by AD in order to mantain the environment clean and secured. Some of these tasks may include finding unused user objects or computers, creating semi-privileged accounts or monitoring privileged groups.'
+    Description           = 'Tasks and functions required by AD in order to maintain the environment clean and secured. Some of these tasks may include finding unused user objects or computers, creating semi-privileged accounts or monitoring privileged groups.'
 
     # Minimum version of the PowerShell engine required by this module
     PowerShellVersion     = '5.1'
@@ -69,10 +69,10 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport     = @()
+    FunctionsToExport     = '*'
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-    CmdletsToExport       = @()
+    CmdletsToExport       = '*'
 
     # Variables to export from this module
     VariablesToExport     = '*'
