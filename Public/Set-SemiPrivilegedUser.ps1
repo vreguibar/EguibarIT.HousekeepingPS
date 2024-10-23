@@ -84,7 +84,22 @@
             HelpMessage = 'Secure password for the Semi-Privileged user.',
             Position = 3)]
         [System.Security.SecureString]
-        $Password
+        $Password,
+
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            HelpMessage = 'Folder containing pictures for the Semi-Privileged user.',
+            Position = 4)]
+        [ValidateScript({
+                if ( -Not ($_ | Test-Path) ) {
+                    throw 'File or folder does not exist'
+                }
+                return $true
+            })]
+        [PSDefaultValue(Help = 'Default Value is "C:\PsScripts\"')]
+        [System.IO.FileInfo]
+        $PictureFolder = 'C:\PsScripts\'
     )
 
     Begin {
@@ -174,6 +189,28 @@
             } #end If
         } #end Foreach
 
+
+        # Get picture if exist. Use default if not.
+        If (Test-Path -Path ('{0}\{1}.jpg' -f $PictureFolder, $newSamAccountName)) {
+            # Read the path and file name of JPG picture
+            $PhotoFile = '{0}\{1}.jpg' -f $PictureFolder, $newSamAccountName
+            # Get the content of the JPG file
+            #$photo = [byte[]](Get-Content -Path $PhotoFile -AsByteStream -Raw )
+            [byte[]]$photo = [System.IO.File]::ReadAllBytes($PhotoFile)
+        } else {
+            If (Test-Path -Path ('{0}\Default.jpg' -f $PictureFolder)) {
+                # Read the path and file name of JPG picture
+                $PhotoFile = '{0}\Default.jpg' -f $PictureFolder
+                # Get the content of the JPG file
+                #$photo = [byte[]](Get-Content -Path $PhotoFile -Encoding byte) - NOT WORKING since PS 6
+                # Alternative
+                [byte[]]$photo = [System.IO.File]::ReadAllBytes($PhotoFile)
+                #$photo = [byte[]](Get-Content -Path $PhotoFile -AsByteStream -Raw)
+            } else {
+                $photo = $null
+            } #end If-Else
+        } #end If-Else
+
     } #end Begin
 
     Process {
@@ -216,6 +253,9 @@
                         }
                     )
 
+                    # Add photo as ThumbnailPhoto
+                    $userParams.Replace.Add('thumbnailPhoto', $photo)
+
                     $ReturnUser = Set-ADUser -Identity $newSamAccountName @userParams
 
                 } #end If
@@ -224,6 +264,9 @@
 
                 # Semi-Privileged User does not exist. Create it!
                 if ($PSCmdlet.ShouldProcess($newSamAccountName, 'Creating new Semi-Privileged user')) {
+
+                    # Add photo as ThumbnailPhoto
+                    $userParams.OtherAttributes.Add('thumbnailPhoto', $photo)
 
                     $ReturnUser = New-ADUser @userParams
 

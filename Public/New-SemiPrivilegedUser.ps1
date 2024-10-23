@@ -177,7 +177,22 @@
             Position = 8)]
         [Parameter(ParameterSetName = 'DataByEmail')]
         [int]
-        $SMTPport
+        $SMTPport,
+
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            HelpMessage = 'Folder containing pictures for the Semi-Privileged user.',
+            Position = 9)]
+        [ValidateScript({
+                if ( -Not ($_ | Test-Path) ) {
+                    throw 'File or folder does not exist'
+                }
+                return $true
+            })]
+        [PSDefaultValue(Help = 'Default Value is "C:\PsScripts\"')]
+        [System.IO.FileInfo]
+        $PictureFolder = 'C:\PsScripts\'
     )
 
     Begin {
@@ -427,6 +442,7 @@ h1, h2, h3, h4 {
                 AccountType    = $PSBoundParameters['AccountType']
                 AdminUsersDN   = 'OU=Users,OU=Admin,DC=EguibarIT,DC=local'
                 Password       = $newPassword
+                PictureFolder  = $PictureFolder
             }
             $SemiPrivilegedUser = Set-SemiPrivilegedUser @Splat
 
