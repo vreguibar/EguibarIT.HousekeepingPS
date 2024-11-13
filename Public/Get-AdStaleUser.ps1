@@ -93,7 +93,7 @@
         )
         Write-Verbose -Message $txt
 
-        Import-MyModule ActiveDirectory -ErrorAction Stop
+        Import-MyModule ActiveDirectory -Verbose:$false
 
         ##############################
         # Variables Definition
@@ -102,10 +102,11 @@
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
         # Define return type as HashSet for unique stale users
-        $StaleUsers = [System.Collections.Generic.HashSet[Microsoft.ActiveDirectory.Management.ADUser]]::new([StringComparer]::OrdinalIgnoreCase)
+        $StaleUsers = [System.Collections.Generic.HashSet[Microsoft.ActiveDirectory.Management.ADUser]]::new()
 
         # Calculate the date threshold based on the DaysOffset parameter
         $ThresholdDate = (Get-Date).AddDays(-$DaysOffset)
+        $ThresholdFileTime = $ThresholdDate.ToFileTime()
         Write-Verbose -Message (
             'Searching for users with last logon date earlier than {0}' -f
             $ThresholdDate.ToUniversalTime()
@@ -123,8 +124,8 @@
                 # This filter retrieves only users whose LastLogonTimestamp is older than $ThresholdDate
                 # or is unset, indicating they may never have logged on.
                 $Splat = @{
-                    Filter   = "(LastLogonTimestamp -lt '$($ThresholdDate.ToFileTime())' -or !LastLogonTimestamp)"
-                    Property = 'LastLogon', 'LastLogonTimestamp'
+                    Filter     = '(LastLogon -lt "{0}")' -f $ThresholdFileTime
+                    Properties = 'Name', 'SamAccountName', 'LastLogon'
                 }
                 if ($SearchBase) {
                     $Splat['SearchBase'] = $SearchBase
@@ -133,19 +134,13 @@
                 # Retrieve all users from Active Directory
                 $Users = Get-ADUser @Splat
 
+                Write-Verbose -Message ('Found {0} users meeting the date criteria.' -f $Users.Count)
+
                 foreach ($User in $Users) {
                     # Convert LastLogon and LastLogonTimestamp to DateTime, defaulting to the oldest available date
-                    $LastLogonDate = if ($User.LastLogon) {
-                        [DateTime]::FromFileTime([int64]$User.LastLogon)
-                    } else {
-                        [DateTime]::MaxValue
-                    } #end If-Else
+                    $LastLogonDate = [DateTime]::FromFileTime([int64]$User.LastLogon)
 
-                    $LastLogonTimestampDate = if ($User.LastLogonTimestamp) {
-                        [DateTime]::FromFileTime([int64]$User.LastLogonTimestamp)
-                    } else {
-                        [DateTime]::MaxValue
-                    } #end If-Else
+                    $LastLogonTimestampDate = [DateTime]::FromFileTime([int64]$User.LastLogonTimestamp)
 
                     # Determine the earlier logon date for staleness comparison
                     $EffectiveLastLogon = if ($LastLogonDate -le $LastLogonTimestampDate) {
@@ -157,9 +152,7 @@
                     # Check if the effective last logon date is earlier than the threshold
                     if ($EffectiveLastLogon -le $ThresholdDate) {
                         Write-Verbose -Message (
-                            'User {0} with effective
-                        last logon date of {1}
-                        added to stale users.' -f
+                            'User {0} with effective last logon date of {1} added to stale users.' -f
                             $User.SamAccountName, $EffectiveLastLogon
                         )
                         $StaleUsers.Add($User) | Out-Null
