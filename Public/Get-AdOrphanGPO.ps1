@@ -42,13 +42,21 @@
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     [OutputType([String])]
 
-    param(
-        [Parameter(Mandatory = $false)]
-        [bool]$RemoveOrphanGPOs = $false
+    Param(
+
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            ValueFromRemainingArguments = $true,
+            HelpMessage = 'If present will remove any Orphan GPO.',
+            Position = 0)]
+        [switch]
+        $RemoveOrphanGPOs = $false
+
     )
 
     Begin {
-       $txt = ($Variables.HeaderHousekeeping -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
@@ -56,9 +64,7 @@
         Write-Verbose -Message $txt
 
         # Verify the Active Directory module is loaded
-        if (-not (Get-Module -Name ActiveDirectory)) {
-            Import-Module ActiveDirectory -Force -Verbose:$false
-        } #end If
+        Import-MyModule 'ActiveDirectory' -Verbose:$false
 
         ##############################
         # Variables Definition
@@ -77,7 +83,7 @@
         # Get all GPTs from SYSVOL
         $gpts = Get-ChildItem -Path $unc -Directory |
             Where-Object { $_.Name -ne 'PolicyDefinitions' } |
-            ForEach-Object { $_.Name }
+                ForEach-Object { $_.Name }
 
         # Find orphaned GPOs
         $OrphanedGPOs = $gpos | Where-Object { $_ -notin $gpts }
@@ -99,9 +105,9 @@
     } #end Process
 
     End {
-        Write-Verbose -Message "Function $($MyInvocation.InvocationName) finished getting and removing Orphan GPOs."
-        Write-Verbose -Message ''
-        Write-Verbose -Message '-------------------------------------------------------------------------------'
-        Write-Verbose -Message ''
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'getting and removing Orphan GPOs.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 }
