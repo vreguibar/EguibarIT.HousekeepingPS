@@ -166,6 +166,11 @@
     } # end process
 
     end {
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'getting stale users.'
+        )
+        Write-Verbose -Message $txt
+
         # Return the list of stale users
         if ($StaleUsers.Count -gt 0) {
             Write-Output $StaleUsers

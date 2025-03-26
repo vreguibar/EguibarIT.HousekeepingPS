@@ -96,7 +96,7 @@
         Write-Verbose -Message ('TimeStamp for stale computers: {0}' -f $timeStamp)
 
         # Initialize an empty list to hold stale computers
-        $StaleComputers = [System.Collections.Generic.HashSet[Microsoft.ActiveDirectory.Management.ADComputer]]::new([StringComparer]::OrdinalIgnoreCase)
+        $StaleComputers = [System.Collections.Generic.HashSet[Microsoft.ActiveDirectory.Management.ADComputer]]::new()
 
     } #end Begin
 
