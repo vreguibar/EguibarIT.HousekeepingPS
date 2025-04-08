@@ -8,37 +8,69 @@
             and ensures that security inheritance is reset. It can handle users, groups, and potentially other object types
             that can have security permissions.
 
+            The adminCount attribute is used by the SDProp process to determine if an object's permissions should be
+            protected. Clearing this attribute and resetting inheritance helps maintain proper security delegation.
+
         .PARAMETER SamAccountName
-            The SamAccountName of the AD object to modify.
+            The SamAccountName of the AD object to modify. This parameter accepts pipeline input and is mandatory.
+
+        .PARAMETER Force
+            If specified, suppresses confirmation prompts. Use with caution.
 
         .EXAMPLE
-            Clear-AdAdminCount -SamAccountName "jdoe"
+            Clear-AdminCount -SamAccountName 'jdoe'
 
-            Description
-            -----------
-            Clears the 'adminCount' attribute for the AD object with SamAccountName 'jdoe' and ensures that inheritance of security permissions is enabled.
+            Clears the adminCount attribute and resets inheritance for user 'jdoe'
 
-         .NOTES
-            Used Functions:
-                Name                                   | Module
-                ---------------------------------------|--------------------------
-                Get-ADObject                           | ActiveDirectory
-                Set-ADObject                           | ActiveDirectory
-                Import-Module                          | Microsoft.PowerShell.Core
-                Write-Verbose                          | Microsoft.PowerShell.Utility
-                Write-Error                            | Microsoft.PowerShell.Utility
-                Get-FunctionDisplay                    | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
+        .EXAMPLE
+            'user1','user2' | Clear-AdminCount -Verbose
+
+            Processes multiple users via pipeline with verbose output
+
+        .EXAMPLE
+            Get-ADUser -Filter {adminCount -eq 1} | Clear-AdminCount -WhatIf
+
+            Shows what would happen when clearing adminCount for all users with adminCount=1
+
+        .OUTPUTS
+            [PSCustomObject] containing:
+                SamAccountName     : The processed account name
+                DistinguishedName : The object's DN
+                Success          : Boolean indicating operation success
+                Message          : Operation details or error message
 
         .NOTES
-            Version:         1.1
-            DateModified:    08/Feb/2024
-            LasModifiedBy:   Vicente Rodriguez Eguibar
-                vicente@eguibar.com
-                Eguibar Information Technology S.L.
-                http://www.eguibarit.com
+            Used Functions:
+                Name                                       ║ Module/Namespace
+                ═══════════════════════════════════════════╬══════════════════════════════
+                Get-ADObject                               ║ ActiveDirectory
+                Set-ADObject                               ║ ActiveDirectory
+                Import-Module                              ║ Microsoft.PowerShell.Core
+                Write-Verbose                              ║ Microsoft.PowerShell.Utility
+                Write-Error                                ║ Microsoft.PowerShell.Utility
+                Write-Warning                              ║ Microsoft.PowerShell.Utility
+                Get-FunctionDisplay                        ║ EguibarIT.HousekeepingPS
+                Import-MyModule                            ║ EguibarIT.HousekeepingPS
+
+        .NOTES
+            Version:         1.2
+            DateModified:    7/Apr/2025
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                            vicente@eguibar.com
+                            Eguibar IT
+                            http://www.eguibarit.com
+
+        .LINK
+            https://github.com/vreguibar/EguibarIT.HousekeepingPS
+            https://docs.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
     #>
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
-    [OutputType([string])]
+
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        ConfirmImpact = 'Medium',
+        DefaultParameterSetName = 'Default'
+    )]
+    [OutputType([PSCustomObject])]
 
     Param(
 
@@ -50,82 +82,148 @@
             Position = 0)]
         [ValidateNotNullOrEmpty()]
         [Alias('IdentityReference', 'Identity', 'Account')]
-        [string]
-        $SamAccountName
+        [string[]]
+        $SamAccountName,
+
+        [Parameter(
+            Mandatory = $false
+        )]
+        [switch]
+        $Force
 
     )
 
     Begin {
 
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+        Set-StrictMode -Version Latest
 
-        # Verify the Active Directory module is loaded
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+
+        ##############################
+        # Module Import
 
         Import-MyModule ActiveDirectory -Verbose:$false
-
 
         ##############################
         # Variables Definition
 
-        $adObject = $null
-        $dnPath = $null
-        $directoryEntry = $null
-        $acl = $null
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
+        # Initialize counter for Write-Progress
+        [int]$i = 0
+        [int]$total = 1 # Will be updated when pipeline input is counted
+
+        # Initialize results collection
+        $results = [System.Collections.Generic.List[PSCustomObject]]::new()
 
     } #end Begin
 
     Process {
-        try {
-            # Get the AD Object
-            $adObject = Get-ADObject -Filter { SamAccountName -eq $SamAccountName } -Properties adminCount
+        # Update total count for progress bar if using pipeline
+        if ($PSCmdlet.MyInvocation.ExpectingInput) {
+            $total = $SamAccountName.Count
+        } #end if
 
-            if (-not $adObject) {
-                Write-Warning "AD object not found: $SamAccountName"
-                return
+        foreach ($account in $SamAccountName) {
+            $i++
+
+            # Progress bar
+            Write-Progress -Activity 'Clearing AdminCount' -Status ('Processing {0}' -f $account) -PercentComplete (($i / $total) * 100)
+
+            Write-Debug -Message ('Processing account: {0}' -f $account)
+
+            $result = [PSCustomObject]@{
+                SamAccountName    = $account
+                DistinguishedName = $null
+                Success           = $false
+                Message           = ''
             }
 
-            # Confirm action before proceeding
-            if ($Force -or $PSCmdlet.ShouldProcess($adObject.DistinguishedName, 'Clear adminCount and reset inheritance')) {
+            try {
+                # Get AD object with required properties
+                $splat = @{
+                    Filter      = { SamAccountName -eq $account }
+                    Properties  = 'adminCount', 'nTSecurityDescriptor'
+                    ErrorAction = 'Stop'
+                } #end splat
+                $adObject = Get-ADObject @Splat
 
-                # Clear adminCount attribute
-                Set-ADObject -Identity $adObject -Clear adminCount -ErrorAction Stop
-                Write-Verbose -Message ('Cleared adminCount for {0}' -f $adObject.DistinguishedName)
-
-                # Get the distinguished name
-                #$dnPath = 'LDAP://{0}' -f $adObject.DistinguishedName
-                #$directoryEntry = New-Object System.DirectoryServices.DirectoryEntry $dnPath
-                $directoryEntry = [ADSI]"LDAP://$($adObject.DistinguishedName)"
-
-                # Modify security settings to allow inheritance
-                $acl = $directoryEntry.ObjectSecurity
-                if ($acl.AreAccessRulesProtected) {
-                    $acl.SetAccessRuleProtection($false, $true)
-                    $directoryEntry.CommitChanges()
-                    Write-Verbose -Message ('Reset inheritance for {0}' -f $adObject.DistinguishedName)
+                if (-not $adObject) {
+                    $result.Message = ('AD object not found: {0}' -f $account)
+                    Write-Warning -Message $result.Message
+                    $results.Add($result)
+                    continue
                 } #end if
 
-                Write-Verbose -Message ('
-                    Object: {0}
-                        Updated permissions - OK
-                        inheritance reset   - OK' -f
-                    $adObject.DistinguishedName
-                )
-            }#end If
+                $result.DistinguishedName = $adObject.DistinguishedName
 
-        } catch {
-            Write-Error -Message ('An error occurred: {0}' -f $_)
-        } #end Try-Catch
+                # Check if adminCount needs to be cleared
+                if ($null -eq $adObject.adminCount) {
+                    $result.Message = 'AdminCount already null - no action needed'
+                    $result.Success = $true
+                    $results.Add($result)
+                    continue
+                } #end if
+
+                # Process if confirmed
+                $message = ('Clear adminCount and reset inheritance for {0}' -f $adObject.DistinguishedName)
+                if ($Force -or $PSCmdlet.ShouldProcess($message)) {
+
+                    # Clear adminCount attribute
+                    Set-ADObject -Identity $adObject -Clear adminCount -ErrorAction Stop
+                    Write-Verbose -Message ('Cleared adminCount for {0}' -f $adObject.DistinguishedName)
+
+                    # Reset inheritance using ADSI
+                    $directoryEntry = [ADSI]('LDAP://{0}' -f $adObject.DistinguishedName)
+                    $acl = $directoryEntry.ObjectSecurity
+
+                    if ($acl.AreAccessRulesProtected) {
+                        $acl.SetAccessRuleProtection($false, $true)
+                        $directoryEntry.CommitChanges()
+                        Write-Verbose -Message ('Reset inheritance for {0}' -f $adObject.DistinguishedName)
+                    } #end if
+
+                    $result.Success = $true
+                    $result.Message = 'AdminCount cleared and inheritance reset successfully'
+                } #end if
+
+            } catch {
+
+                $result.Message = ('Error: {0}' -f $_.Exception.Message)
+                Write-Error -Message $result.Message
+
+            } finally {
+
+                $results.Add($result)
+
+            } #end try-catch-finally
+
+        } #end foreach
+        Write-Progress -Activity 'Clearing AdminCount' -Completed
     } #end Process
 
     End {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'processing AdminCount & Permissions.'
-        )
-        Write-Verbose -Message $txt
+        # Display function footer if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'processing AdminCount & Permissions.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+        return $results
     } #end End
-}
+} #end Function Clear-AdminCount
