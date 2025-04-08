@@ -68,8 +68,11 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'If present will remove any Orphan GPO.',
             Position = 0)]
+        [PSDefaultValue(Help = 'Default Value is "FALSE"',
+            Value = $false
+        )]
         [switch]
-        $RemoveOrphanGPOs = $false
+        $RemoveOrphanGPOs
 
     )
 
