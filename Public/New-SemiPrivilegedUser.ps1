@@ -1,24 +1,47 @@
 ﻿Function New-SemiPrivilegedUser {
     <#
         .SYNOPSIS
-            Creates a new Semi-Privileged user based on the AD Delegation Model.
+            Creates a new Semi-Privileged user based on the AD Delegation Model with enhanced security.
 
         .DESCRIPTION
             This function creates a new Semi-Privileged user based on the Active Directory (AD) Delegation Model.
             It checks if the provided standard user exists, and if so, it creates a new Semi-Privileged user with the specified account type.
             It also sends notification emails and encrypted emails containing the password, if specified.
 
+            The function will:
+            - Validates existing standard user account
+            - Creates corresponding semi-privileged account
+            - Sets appropriate security settings
+            - Sends secure email notifications if email is provided
+            - Generates a secure password
+            - Manages password securely
+            - Implements proper access controls
+
+            Key features:
+            - Secure password generation and handling
+            - Email notifications with Graph API support
+            - Tiered access model compliance (T0/T1/T2)
+            - Comprehensive logging and auditing
+            - Secure credential management
+            - Template-based email notifications
+
         .PARAMETER SamAccountName
-            Identity of the user getting the new Admin Account (Semi-Privileged user).
+            Identity of the user getting the new Admin Account (Semi-Privileged user). Standard user
+            account name that will get privileged access. Must be an existing standard user.
 
         .PARAMETER EmailTo
-            Valid Email of the target user. This address will be used to send information to her/him.
+            Email address for notifications. If not specified, uses user's AD email.
+            Must be a valid email address.
 
         .PARAMETER AccountType
-            Must specify the account type. Valid values are T0 or T1 or T2
+            Type of privileged access (T0/T1/T2):
+            T0 - Domain/Forest administration
+            T1 - Server administration
+            T2 - Workstation/User administration
 
         .PARAMETER AdminUsersDN
-            Distinguished Name of the container where the Admin Accounts are located.
+            Distinguished Name of the privileged users container.
+            Must be a valid AD container path.
 
         .PARAMETER From
             Valid Email of the sending user. This address will be used to send the information and for authenticate to the SMTP server.
@@ -83,7 +106,11 @@
                 http://www.eguibarit.com
     #>
 
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'Default')]
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        ConfirmImpact = 'Medium',
+        DefaultParameterSetName = 'Default'
+    )]
     [OutputType([Microsoft.ActiveDirectory.Management.ADAccount])]
 
     Param (
@@ -113,7 +140,10 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Distinguished Name of the container where the Admin Accounts are located.',
             Position = 2)]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
+        [ValidateScript(
+            { Test-IsValidDN -ObjectDN $_ },
+            ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
+        )]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [string]
         $AdminUsersDN,
@@ -190,20 +220,32 @@
                 }
                 return $true
             })]
-        [PSDefaultValue(Help = 'Default Value is "C:\PsScripts\"')]
+        [PSDefaultValue(
+            Help = 'Default Value is "C:\PsScripts\Pic\"',
+            value = 'C:\PsScripts\Pic\'
+        )]
         [System.IO.FileInfo]
-        $PictureFolder = 'C:\PsScripts\'
+        $PictureFolder
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+        Set-StrictMode -Version Latest
 
-        # Verify the Active Directory module is loaded
+        # Initialize logging
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+        ##############################
+        # Module imports
+
         Import-MyModule 'ActiveDirectory' -Verbose:$false
 
         ##############################
@@ -440,9 +482,9 @@ h1, h2, h3, h4 {
             $Splat = @{
                 SamAccountName = $StdUser.SamAccountName
                 AccountType    = $PSBoundParameters['AccountType']
-                AdminUsersDN   = 'OU=Users,OU=Admin,DC=EguibarIT,DC=local'
+                AdminUsersDN   = $PSBoundParameters['AdminUsersDN']
                 Password       = $newPassword
-                PictureFolder  = $PictureFolder
+                PictureFolder  = $PSBoundParameters['PictureFolder']
             }
             $SemiPrivilegedUser = Set-SemiPrivilegedUser @Splat
 
@@ -531,9 +573,13 @@ h1, h2, h3, h4 {
     } #end Process
 
     End {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'creating/modifying Semi-Privileged user.'
-        )
-        Write-Verbose -Message $txt
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'creating/modifying Semi-Privileged user.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
     } #end End
-}
+} #end Function New-SemiPrivilegedUser

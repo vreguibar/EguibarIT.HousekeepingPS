@@ -1,0 +1,139 @@
+﻿{
+    "version": 1,
+    "name": "PowerShell Function Development",
+    "description": "Configuration for PowerShell function development with focus on Active Directory and Windows Server management",
+    "instructions": [
+        "You are assisting with PowerShell function development for Active Directory and Windows Server management.",
+        "Follow the coding standards and structure specified in the Code-Style.md file.",
+        "Ensure all functions include complete comment-based help with Synopsis, Description, Parameters, Examples, Notes, and Links.",
+        "Functions should implement Begin/Process/End blocks with proper error handling.",
+        "Use single quotes for strings and string formatting with the -f operator.",
+        "Implement proper parameter validation and pipeline support.",
+        "Add appropriate verbose, debug, warning and error messages.",
+        "Follow the Active Directory tiering model and security best practices.",
+        "Optimize code for large-scale environments (100,000+ objects).",
+        "Include ShouldProcess functionality for state-changing operations.",
+        "Document all cmdlets used in the Notes section with their corresponding modules.",
+        "Implement idempotent behavior where applicable."
+    ],
+    "context": [
+        {
+            "source": "file",
+            "pattern": "*.ps1",
+            "maxDepth": 3,
+            "maxFiles": 20
+        },
+        {
+            "source": "file",
+            "path": "Code-Style.md"
+        },
+        {
+            "source": "file",
+            "path": "copilot-instructions.md"
+        }
+    ],
+    "lenses": [
+        {
+            "name": "function",
+            "pattern": "function ([A-Za-z0-9-]+)",
+            "description": "PowerShell functions",
+            "importance": "high"
+        },
+        {
+            "name": "parameter",
+            "pattern": "\\[Parameter\\(([^\\)]+)\\)\\]",
+            "description": "Function parameters",
+            "importance": "medium"
+        },
+        {
+            "name": "error-handling",
+            "pattern": "try\\s*{[^}]*}\\s*catch\\s*{[^}]*}",
+            "description": "Error handling blocks",
+            "importance": "medium"
+        }
+    ],
+    "prompts": [
+        {
+            "name": "New-Function",
+            "description": "Create a new PowerShell function following the standard template",
+            "template": "Create a PowerShell function named {{functionName}} that {{description}}. Follow the structure and standards from Code-Style.md with proper comment-based help, parameter validation, error handling, and verbose output. Target environment is Active Directory/Windows Server with a focus on performance and security best practices."
+        },
+        {
+            "name": "Debug-ExistingFunction",
+            "description": "Review, debug and optimize existing function following the standard template",
+            "template": "Review, debug and optimize existing powershell function named {{functionName}} that {{description}}. Follow the structure and standards from Code-Style.md with proper comment-based help, parameter validation, error handling, and verbose output. Target environment is Active Directory/Windows Server with a focus on performance and security best practices."
+        },
+        {
+            "name": "Add-ErrorHandling",
+            "description": "Add error handling to existing code",
+            "template": "Add comprehensive error handling to the following PowerShell code. Include try/catch blocks with specific exception types where appropriate, and add appropriate Write-Verbose, Write-Debug, Write-Warning, and Write-Error messages.\n\n```powershell\n{{selection}}\n```"
+        },
+        {
+            "name": "Improve-Parameters",
+            "description": "Enhance parameter definitions with validation and pipeline support",
+            "template": "Improve the parameter definitions in the following PowerShell function to include proper validation attributes, help messages, pipeline support, and parameter sets if needed.\n\n```powershell\n{{selection}}\n```"
+        },
+        {
+            "name": "Add-PesterTests",
+            "description": "Generate Pester tests for a function",
+            "template": "Create Pester tests for the following PowerShell function. Include tests for parameter validation, expected functionality with various inputs, error handling paths, and edge cases.\n\n```powershell\n{{selection}}\n```"
+        }
+    ],
+    "specs": [
+        {
+            "name": "PowerShell Function Development",
+            "description": "Guidelines for creating PowerShell functions following best practices",
+            "include": [
+                "**/*.ps1",
+                "**/*.psm1",
+                "**/*.psd1"
+            ],
+            "contextConfig": {
+                "promptFiles": [
+                    ".github/prompts/powershell-function.prompt.md"
+                ]
+            },
+            "settings": {
+                "guidelines": {
+                    "codeStyle": {
+                        "usePascalCaseForVariables": true,
+                        "useStronglyTypedVariables": true,
+                        "maxLineLength": 120,
+                        "useSingleQuotesForStrings": true,
+                        "useFormattedStrings": true,
+                        "includeBlockComments": true
+                    },
+                    "functionStructure": {
+                        "includeCommentBasedHelp": true,
+                        "includeCmdletBinding": true,
+                        "includeOutputType": true,
+                        "useParameterValidation": true,
+                        "includeBeginProcessEndBlocks": true,
+                        "includeErrorHandling": true,
+                        "includeStrictMode": true
+                    },
+                    "securityPractices": {
+                        "avoidHardcodedCredentials": true,
+                        "sanitizeUserInput": true,
+                        "useSecureStringForSensitiveData": true,
+                        "implementLeastPrivilegePrinciple": true
+                    },
+                    "performance": {
+                        "supportBatchProcessing": true,
+                        "optimizeForLargeEnvironments": true,
+                        "minimizeRedundantQueries": true,
+                        "useEfficientFiltering": true,
+                        "implementPagination": true
+                    },
+                    "testing": {
+                        "includePesterTests": true,
+                        "mockExternalDependencies": true,
+                        "testParameterValidation": true,
+                        "testErrorHandling": true,
+                        "testEdgeCases": true
+                    }
+                }
+            }
+        }
+    ]
+}
