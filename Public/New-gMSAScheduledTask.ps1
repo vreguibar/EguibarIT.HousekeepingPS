@@ -2,68 +2,110 @@
 
     <#
         .SYNOPSIS
-            Creates a scheduled task using a Group Managed Service Account (gMSA).
+            Creates a scheduled task using a Group Managed Service Account (gMSA) with enhanced security.
 
         .DESCRIPTION
-            This advanced function allows you to create a scheduled task that uses a gMSA to
-            run specified actions. You can set the task to run either on specific days of
-            the week (Weekly) or several times per day (Daily).
+            Creates and configures scheduled tasks that run under a Group Managed Service Account (gMSA)
+            with specified schedules and security settings. Supports both daily and weekly scheduling
+            with multiple execution times and proper error handling.
+
+            Key features:
+            - Secure gMSA integration with proper permission validation
+            - Flexible scheduling options (daily/weekly with multiple executions)
+            - Enhanced security settings and task hardening
+            - Comprehensive error handling and logging
+            - Support for high-availability scenarios
 
         .PARAMETER TaskName
-            The name of the scheduled task.
+            The name of the scheduled task. Must be unique within the task folder.
 
         .PARAMETER TaskAction
-            The arguments to pass to the executable (e.g., the script or action to run).
+            The arguments to pass to the executable. Should include all necessary parameters.
 
         .PARAMETER ActionPath
-            The full path to the executable or script that will be run by the task.
+            Full path to the executable or PowerShell script to run. Must exist and be accessible.
 
         .PARAMETER gMSAAccount
-            The Group Managed Service Account (gMSA) that will run the task.
+            The Group Managed Service Account (gMSA) that will run the task. Must exist and be properly configured.
 
         .PARAMETER Description
-            A description for the scheduled task.
+            Optional description for the scheduled task. Default is 'Scheduled task created using gMSA.'
 
         .PARAMETER TriggerType
-            The type of trigger to use (either "Daily" or "Weekly").
+            The type of schedule trigger: 'Daily' or 'Weekly'.
 
         .PARAMETER StartTime
-            The time the task will start (HH:mm format).
+            The time to start the task in HH:mm format (24-hour).
 
         .PARAMETER DaysOfWeek
-            Days of the week on which the task will run (for Weekly triggers).
+            Required for weekly tasks. Specifies which days to run the task.
 
         .PARAMETER TimesPerDay
-            The number of times the task should run per day (for Daily triggers).
-            Accepts values: 1, 2, 3, 4, 6, 8, 12, 24 or 48.
-
-        .EXAMPLE
-            New-gMSAScheduledTask -TaskName "MyDailyTask" -TaskAction "-ExecutionPolicy ByPass -NoLogo -File 'C:\Scripts\ MyScript.ps1'"
-            -ActionPath "pwsh.exe" -gMSAAccount "gmsaTaskAccount$"
-            -TriggerType "Daily" -StartTime "09:00" -TimesPerDay 4
-
-            Creates a scheduled task that runs four times per day at intervals starting
-            at 9:00 AM using the specified gMSA.
-
-        .EXAMPLE
-            New-gMSAScheduledTask -TaskName "MyWeeklyTask" -TaskAction "-ExecutionPolicy ByPass -NoLogo -File 'C:\Scripts\ MyScript.ps1'" -ActionPath "pwsh.exe" -gMSAAccount $x -TriggerType "Weekly" -StartTime "08:00" -DaysOfWeek Monday,Wednesday,Friday
-
-            Creates a scheduled task that runs every Monday, Wednesday, and Friday
-            at 8:00 AM using the specified gMSA.
-
-        .INPUTS
-            None. You must provide all inputs.
+            For daily tasks, specifies how many times per day to run. Valid values: 1,2,3,4,6,8,12,24,48.
 
         .OUTPUTS
-            Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/TaskScheduler/MSFT_ScheduledTask
-            The function outputs a Scheduled Task object upon successful creation.
+            [Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/TaskScheduler/MSFT_ScheduledTask]
+            Returns the created scheduled task object.
+
+        .EXAMPLE
+            $params = @{
+                TaskName = "Daily-Backup"
+                TaskAction = "-ExecutionPolicy Bypass -File 'C:\Scripts\Backup.ps1'"
+                ActionPath = "pwsh.exe"
+                gMSAAccount = "backup_gmsa$"
+                TriggerType = "Daily"
+                StartTime = "23:00"
+                TimesPerDay = 1
+            }
+            New-gMSAScheduledTask @params
+
+            Creates a daily backup task running at 23:00 using the specified gMSA.
+
+        .EXAMPLE
+            $params = @{
+                TaskName = "Weekly-Maintenance"
+                TaskAction = "-ExecutionPolicy Bypass -File 'C:\Scripts\Maintenance.ps1'"
+                ActionPath = "pwsh.exe"
+                gMSAAccount = "maint_gmsa$"
+                TriggerType = "Weekly"
+                StartTime = "03:00"
+                DaysOfWeek = "Saturday","Sunday"
+                Description = "Weekend maintenance tasks"
+            }
+            New-gMSAScheduledTask @params
+
+            Creates a weekend maintenance task running at 03:00 on Saturdays and Sundays.
 
         .NOTES
-            This script requires Windows Task Scheduler cmdlets and an Active Directory
-            environment where gMSA is enabled.
+            Used Functions:
+                Name                                   ║ Module
+                ═══════════════════════════════════════╬══════════════════════════════
+                Get-AdObjectType                       ║ ActiveDirectory
+                New-ScheduledTaskAction                ║ ScheduledTasks
+                New-ScheduledTaskTrigger               ║ ScheduledTasks
+                New-ScheduledTaskPrincipal             ║ ScheduledTasks
+                New-ScheduledTaskSettingsSet           ║ ScheduledTasks
+                Register-ScheduledTask                 ║ ScheduledTasks
+                Set-ScheduledTask                      ║ ScheduledTasks
+                Write-Verbose                          ║ Microsoft.PowerShell.Utility
+                Write-Error                            ║ Microsoft.PowerShell.Utility
+                Get-FunctionDisplay                    ║ EguibarIT.HousekeepingPS
+
+        .NOTES
+            Version:         1.2
+            DateModified:    08/Apr/2025
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                vicente@eguibar.com
+                Eguibar IT
+                http://www.eguibarit.com
+
+        .LINK
+            https://github.com/vreguibar/EguibarIT.HousekeepingPS
     #>
 
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
+    [CmdletBinding(SupportsShouldProcess = $true,
+        ConfirmImpact = 'High',
+        DefaultParameterSetName = 'Daily')]
     [OutputType([Microsoft.Management.Infrastructure.CimInstance])]
     # [Microsoft.Management.Infrastructure.CimInstance#ROOT / Microsoft/Windows/TaskScheduler/MSFT_ScheduledTask]
 
@@ -75,6 +117,7 @@
             HelpMessage = 'Specify the name of the Scheduled Task.',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
+        [ValidatePattern('^[\w\-\. ]+$')]
         [string]
         $TaskName,
 
@@ -95,6 +138,12 @@
             HelpMessage = 'Specify the full path for the executable or script (e.g., Powershell.exe or script path).',
             Position = 2)]
         [ValidateNotNullOrEmpty()]
+        [ValidateScript({
+                if (-not (Test-Path $_)) {
+                    throw "ActionPath '$_' does not exist."
+                }
+                return $true
+            })]
         [string]
         $ActionPath,
 
@@ -113,8 +162,12 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Optional: Provide a description for the scheduled task.',
             Position = 4)]
+        [PSDefaultValue(
+            Help = 'Default Value is "Scheduled task created using gMSA."',
+            Value = 'Scheduled task created using gMSA.'
+        )]
         [string]
-        $Description = 'Scheduled task created using gMSA.',
+        $Description,
 
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
@@ -132,7 +185,10 @@
             ValueFromRemainingArguments = $true,
             HelpMessage = 'Specify the time the task should run (HH:mm format).',
             Position = 6)]
-        [ValidatePattern('^([01]?[0-9]|2[0-3]):[0-5][0-9]$', ErrorMessage = 'Time must be in HH:mm format.')]
+        [ValidatePattern(
+            '^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
+            ErrorMessage = 'Time must be in HH:mm format.'
+        )]
         [string]
         $StartTime,
 
@@ -155,19 +211,34 @@
             ParameterSetName = 'DailyTrigger',
             Position = 8)]
         [ValidateSet(1, 2, 3, 4, 6, 8, 12, 24, 48)]
-        [PSDefaultValue(Help = 'Default Value is "1"')]
+        [PSDefaultValue(
+            Help = 'Default Value is "1"',
+            Value = 1
+        )]
         [int]
-        $TimesPerDay = 1
+        $TimesPerDay
     )
 
     begin {
-        # Initial verbose message
-        Write-Verbose -Message ('
-            Starting the process to create the
-                scheduled task {0}
-                using gMSA {1}.' -f
-            $PSBoundParameters['TaskName'], $PSBoundParameters['gMSAAccount']
-        )
+        Set-StrictMode -Version Latest
+
+        # Initialize logging
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+        ##############################
+        # Module imports
+
+        ##############################
+        # Variables Definition
 
 
         # parameters variable for splatting CMDlets
@@ -178,9 +249,22 @@
 
         # Validate if the gMSA account exists
         $gMSAAccount = Get-AdObjectType -Identity $PSBoundParameters['gMSAAccount']
+        if ($gMSAAccount.ObjectClass -ne 'msDS-GroupManagedServiceAccount') {
+            throw "Account '$gMSAAccount' is not a valid gMSA account."
+        } #end If
+
+        # Initialize collections
+        $triggers = [System.Collections.Generic.List[Microsoft.Management.Infrastructure.CimInstance]]::new()
+
+        # Create base task action
+        $actionParams = @{
+            Execute  = $PSBoundParameters['ActionPath']
+            Argument = $PSBoundParameters['TaskAction']
+        }
 
         # Prepare the action
-        $action = New-ScheduledTaskAction -Execute $PSBoundParameters['ActionPath'] -Argument $PSBoundParameters['TaskAction']
+        $action = New-ScheduledTaskAction @actionParams -ErrorAction Stop
+
         Write-Verbose -Message ('
             Scheduled task action prepared:
                 Action Path: {0}
@@ -191,122 +275,109 @@
 
     process {
 
-        # Process the trigger based on TriggerType
-        switch ($PSBoundParameters['TriggerType']) {
-            'Weekly' {
-                if (-not $PSBoundParameters['DaysOfWeek']) {
-                    Write-Error -Message 'For a weekly task, you must specify at least one day of the week.'
-                    return
-                } #end If
+        if (-not $PSCmdlet.ShouldProcess($TaskName, 'Create scheduled task')) {
+            return
+        }
 
-                $NewTime = @{}
+        try {
+            # Process the trigger based on TriggerType
+            switch ($PSBoundParameters['TriggerType']) {
+                'Weekly' {
+                    if (-not $PSBoundParameters['DaysOfWeek']) {
+                        Write-Error -Message 'For a weekly task, you must specify at least one day of the week.'
+                        return
+                    } #end If
 
-                If ($PSBoundParameters['StartTime'] -contains ':') {
-                    $NewTime.Add('Hour', $PSBoundParameters['StartTime'].Split(':')[0])
-                    $NewTime.Add('Minute', $PSBoundParameters['StartTime'].Split(':')[1])
-                } else {
-                    $NewTime.Add('Hour', $PSBoundParameters['StartTime'])
-                }
-
-                $Splat = @{
-                    Weekly      = $true
-                    DaysOfWeek  = $PSBoundParameters['DaysOfWeek']
-                    At          = (Get-Date @NewTime).AddDays(1)
-                    RandomDelay = (New-TimeSpan -Minutes 15)
-                }
-                $trigger = New-ScheduledTaskTrigger @Splat
-                $triggerList += $trigger
-
-                Write-Verbose -Message ('
-                    Weekly trigger
-                        created at {0}
-                        on {1}.' -f
-                    $PSBoundParameters['StartTime'], ($PSBoundParameters['DaysOfWeek'] -join ', ')
-                )
-
-            } #end Weekly
-
-            'Daily' {
-                $triggerList = @()
-                $intervalMinutes = [math]::Round(1440 / $PSBoundParameters['TimesPerDay'])  # 1440 minutes in a day
-
-                for ($i = 0; $i -lt $PSBoundParameters['TimesPerDay']; $i++) {
-                    # Calculate the start time for each occurrence
-                    $Splat = @{
-                        Hour   = ([int]$PSBoundParameters['StartTime'].Split(':')[0])
-                        Minute = ([int]$PSBoundParameters['StartTime'].Split(':')[1])
-                    }
-                    $currentTriggerTime = (Get-Date @Splat).AddDays(1).AddMinutes($i * $intervalMinutes)
-
-                    $Splat = @{
-                        Daily       = $true
-                        At          = $currentTriggerTime
+                    $triggerParams = @{
+                        Weekly      = $true
+                        DaysOfWeek  = $PSBoundParameters['DaysOfWeek']
+                        At          = [DateTime]::ParseExact($PSBoundParameters['StartTime'], 'HH:mm', $null)
                         RandomDelay = (New-TimeSpan -Minutes 15)
                     }
-                    $trigger = New-ScheduledTaskTrigger @Splat
-                    $triggerList += $trigger
+                    $triggers.Add((New-ScheduledTaskTrigger @triggerParams))
 
-                    Write-Verbose -Message ('Daily trigger created at "{0}".' -f $currentTriggerTime)
-                } #end for
-            } #end Daily
+                } #end Weekly
 
-        } #end switch
+                'Daily' {
+                    $intervalMinutes = [math]::Round(1440 / $PSBoundParameters['TimesPerDay'])
+                    $baseTime = [DateTime]::ParseExact($PSBoundParameters['StartTime'], 'HH:mm', $null)
 
-        if ($PSCmdlet.ShouldProcess("Scheduled Task: $PSBoundParameters['TaskName']")) {
+                    for ($i = 0; $i -lt $TimesPerDay; $i++) {
 
-            try {
+                        $triggerTime = $baseTime.AddMinutes($i * $intervalMinutes)
 
-                # Create the task principal with gMSA account
-                $Splat = @{
-                    UserId    = '{0}\{1}' -f $env:USERDOMAIN, $gMSAAccount.SamAccountName
-                    LogonType = 'Password'
-                    RunLevel  = 'Highest'
-                }
-                $principal = New-ScheduledTaskPrincipal @Splat
-                Write-Verbose -Message ('Scheduled task principal created for gMSA {0}.' -f $gMSAAccount)
+                        $triggerParams = @{
+                            Daily       = $true
+                            At          = $triggerTime
+                            RandomDelay = (New-TimeSpan -Minutes 15)
+                        }
+                        $triggers.Add((New-ScheduledTaskTrigger @triggerParams))
+                    }
+                } #end Daily
 
-                # Register the task
-                $Splat = @{
-                    AllowStartIfOnBatteries    = $true
-                    Compatibility              = 'Win8'
-                    DontStopIfGoingOnBatteries = $true
-                    Hidden                     = $true
-                    Priority                   = 6
-                    StartWhenAvailable         = $true
-                }
-                $taskSettings = New-ScheduledTaskSettingsSet @Splat
+            } #end switch
 
-                $Splat = @{
-                    TaskName  = $PSBoundParameters['TaskName']
-                    Action    = $action
-                    Trigger   = $triggerList
-                    Principal = $principal
-                    Settings  = $taskSettings
-                }
-                If ( $PSBoundParameters.ContainsKey('Description')) {
-                    $Splat.Add('Description', $PSBoundParameters['Description'])
-                }
-                $task = Register-ScheduledTask @Splat
+            # Create the task principal with gMSA account
+            $Splat = @{
+                UserId    = '{0}\{1}' -f $env:USERDOMAIN, $gMSAAccount.SamAccountName
+                LogonType = 'Password'
+                RunLevel  = 'Highest'
+            }
+            $principal = New-ScheduledTaskPrincipal @Splat
+            Write-Verbose -Message ('Scheduled task principal created for gMSA {0}.' -f $gMSAAccount)
 
-                # Set the author
-                $Task.Author = $env:USERNAME
-                $Task | Set-ScheduledTask
+            # Configure task settings
+            $settingsParams = @{
+                AllowStartIfOnBatteries    = $true
+                Compatibility              = 'Win8'
+                DontStopIfGoingOnBatteries = $true
+                Hidden                     = $false
+                Priority                   = 6
+                StartWhenAvailable         = $true
+                WakeToRun                  = $false
+            }
+            $taskSettings = New-ScheduledTaskSettingsSet @settingsParams
 
-                Write-Verbose -Message ('
+            # Register the task
+            $taskParams = @{
+                TaskName    = $PSBoundParameters['TaskName']
+                Action      = $action
+                Trigger     = $triggers
+                Principal   = $principal
+                Settings    = $taskSettings
+                Description = $PSBoundParameters['Description']
+            }
+
+            $task = Register-ScheduledTask @taskParams
+            $task.Author = $env:USERNAME
+            $task | Set-ScheduledTask
+
+            Write-Verbose -Message ('
                     Scheduled task {0}
                     successfully created with gMSA {1}.' -f
-                    $PSBoundParameters['TaskName'], $gMSAAccount
-                )
+                $PSBoundParameters['TaskName'], $gMSAAccount
+            )
 
-                Write-Output $task
-            } catch {
-                Write-Error -Message ('Failed to create the scheduled task: {0}' -f $_)
-            } #end try-catch
-        } #end if
+            Write-Output $task
+
+        } catch {
+
+            Write-Error -Message ('Failed to create the scheduled task: {0}' -f $_.Exception.Message)
+            throw
+
+        } #end try-catch
+
     } #end process
 
     end {
-        Write-Verbose -Message ('Scheduled task creation process completed for {0}.' -f $PSBoundParameters['TaskName'])
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'creation of scheduled task.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
     } #end end
 } #end Function
 

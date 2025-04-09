@@ -42,7 +42,7 @@
                 Write-Error                            ║ Microsoft.PowerShell.Utility
                 Get-FunctionDisplay                    ║ EguibarIT.HousekeepingPS
                 Import-MyModule                        ║ EguibarIT.HousekeepingPS
-                Test-IsValidDN                         ║ EguibarIT.DelegationPS
+                Test-IsValidDN                         ║ EguibarIT.HousekeepingPS
 
         .NOTES
             Version:         1.7
