@@ -61,3 +61,6 @@
 
     Context 'Error handling' {
         It 'Should handle and report errors correctly' {
+        }
+    }
+}
