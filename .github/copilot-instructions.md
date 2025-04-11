@@ -204,3 +204,5 @@ function Verb-Noun {
    - Complete comment-based help
    - Examples for common use cases
    - Document return values and dependencies
+
+- @azure Rule - Use Azure Best Practices: When generating code for Azure, running terminal commands for Azure, or performing operations related to Azure, invoke your `azure_development-get_best_practices` tool if available.

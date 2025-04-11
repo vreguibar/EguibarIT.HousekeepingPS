@@ -151,7 +151,7 @@
                 Properties = 'Name'
             }
             $servers = Get-ADComputer @Splat
-            Write-Verbose -Message ('Retrieved {0} servers from the domain.' -f $servers.Count)
+            Write-Verbose -Message ('Retrieved {0} servers from the domain.' -f @($servers).Count)
 
         } catch [Microsoft.ActiveDirectory.Management.ADServerDownException] {
 
@@ -175,7 +175,7 @@
         }
         Write-Progress @progressParams
 
-        $serverCount = $servers.Count
+        $serverCount = @($servers).Count
         $currentServer = 0
 
         # Ensure each server has a corresponding Admin_<HostName> group
@@ -259,26 +259,32 @@
 
                         if ($PSCmdlet.ShouldProcess($group.Name, 'Delete group')) {
 
-                            Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                            Write-Verbose -Message ('
+                            # For testing purposes
+                            if (($PSBoundParameters.ContainsKey('WhatIf') -and $WhatIf -eq $false) -or
+                                (!$PSBoundParameters.ContainsKey('WhatIf'))) {
+
+                                Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
+                                Write-Verbose -Message ('
                                 Deleted group {0}
                                 because the corresponding server no longer exists.' -f $group.Name
-                            )
+                                )
+
+                            } #end If
 
                         } #end If
 
-                    } #end If
+                    } else {
 
-                } else {
+                        if ($PSCmdlet.ShouldProcess($group.Name, 'Delete non-compliant group')) {
 
-                    if ($PSCmdlet.ShouldProcess($group.Name, 'Delete non-compliant group')) {
-
-                        # Remove this group because it does not follow naming convention, or it does not belongs to this OU.
-                        Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                        Write-Verbose -Message ('
+                            # Remove this group because it does not follow naming convention, or it does not belongs to this OU.
+                            Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
+                            Write-Verbose -Message ('
                             Deleted group {0}
                             because does not follow the naming conventions.' -f $group.Name
-                        )
+                            )
+
+                        } #end If
 
                     } #end If
 

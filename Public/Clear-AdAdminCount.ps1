@@ -70,7 +70,7 @@
         ConfirmImpact = 'Medium',
         DefaultParameterSetName = 'Default'
     )]
-    [OutputType([PSCustomObject])]
+    [OutputType([PSCustomObject[]], [System.Object[]])]
 
     Param(
 
@@ -125,7 +125,7 @@
         [int]$total = 1 # Will be updated when pipeline input is counted
 
         # Initialize results collection
-        $results = [System.Collections.Generic.List[PSCustomObject]]::new()
+        $Script:results = [System.Collections.ArrayList]::new()
 
     } #end Begin
 
@@ -139,7 +139,8 @@
             $i++
 
             # Progress bar
-            Write-Progress -Activity 'Clearing AdminCount' -Status ('Processing {0}' -f $account) -PercentComplete (($i / $total) * 100)
+            $percentComplete = [Math]::Min(($i / $total) * 100, 100)
+            Write-Progress -Activity 'Clearing AdminCount' -Status ('Processing {0}' -f $account) -PercentComplete $percentComplete
 
             Write-Debug -Message ('Processing account: {0}' -f $account)
 
@@ -162,7 +163,7 @@
                 if (-not $adObject) {
                     $result.Message = ('AD object not found: {0}' -f $account)
                     Write-Warning -Message $result.Message
-                    $results.Add($result)
+                    [void]$Script:results.Add($result)
                     continue
                 } #end if
 
@@ -170,44 +171,57 @@
 
                 # Check if adminCount needs to be cleared
                 if ($null -eq $adObject.adminCount) {
-                    $result.Message = 'AdminCount already null - no action needed'
+
                     $result.Success = $true
-                    $results.Add($result)
+                    $result.Message = 'AdminCount already null - no action needed'
+                    [void]$Script:results.Add($result)
                     continue
+
                 } #end if
 
                 # Process if confirmed
                 $message = ('Clear adminCount and reset inheritance for {0}' -f $adObject.DistinguishedName)
-                if ($Force -or $PSCmdlet.ShouldProcess($message)) {
+                if ($Force -or
+                    $PSCmdlet.ShouldProcess($message)) {
 
-                    # Clear adminCount attribute
-                    Set-ADObject -Identity $adObject -Clear adminCount -ErrorAction Stop
-                    Write-Verbose -Message ('Cleared adminCount for {0}' -f $adObject.DistinguishedName)
+                    try {
+                        # Clear adminCount attribute
+                        Set-ADObject -Identity $adObject.DistinguishedName -Clear adminCount -ErrorAction Stop
+                        Write-Verbose -Message ('Cleared adminCount for {0}' -f $adObject.DistinguishedName)
 
-                    # Reset inheritance using ADSI
-                    $directoryEntry = [ADSI]('LDAP://{0}' -f $adObject.DistinguishedName)
-                    $acl = $directoryEntry.ObjectSecurity
+                        # Reset inheritance using ADSI
+                        $directoryEntry = [ADSI]('LDAP://{0}' -f $adObject.DistinguishedName)
+                        $acl = $directoryEntry.ObjectSecurity
 
-                    if ($acl.AreAccessRulesProtected) {
-                        $acl.SetAccessRuleProtection($false, $true)
-                        $directoryEntry.CommitChanges()
-                        Write-Verbose -Message ('Reset inheritance for {0}' -f $adObject.DistinguishedName)
-                    } #end if
+                        if ($acl.AreAccessRulesProtected) {
+                            $acl.SetAccessRuleProtection($false, $true)
+                            $directoryEntry.CommitChanges()
+                            Write-Verbose -Message ('Reset inheritance for {0}' -f $adObject.DistinguishedName)
+                        } #end if
 
-                    $result.Success = $true
-                    $result.Message = 'AdminCount cleared and inheritance reset successfully'
-                } #end if
+                        # Set success after all operations complete
+                        $result.Success = $true
+                        $result.Message = 'AdminCount cleared and inheritance reset successfully'
+
+                    } catch {
+
+                        $result.Success = $false
+                        $result.Message = ('Error while processing: {0}' -f $_.Exception.Message)
+                        Write-Error -Message $result.Message
+
+                    } #end try-catch
+
+                    [void]$Script:results.Add($result)
+
+                }  #end if-else
 
             } catch {
 
                 $result.Message = ('Error: {0}' -f $_.Exception.Message)
+                [void]$Script:results.Add($result)
                 Write-Error -Message $result.Message
 
-            } finally {
-
-                $results.Add($result)
-
-            } #end try-catch-finally
+            } #end try-catch
 
         } #end foreach
         Write-Progress -Activity 'Clearing AdminCount' -Completed
@@ -224,6 +238,7 @@
             Write-Verbose -Message $txt
         } #end If
 
-        return $results
+        # Return results as array
+        return @($Script:results)
     } #end End
 } #end Function Clear-AdminCount

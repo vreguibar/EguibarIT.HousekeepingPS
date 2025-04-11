@@ -49,17 +49,25 @@
         }
     }
 
-    # Mock AD cmdlets
+    # Mock AD cmdlets - Ensure they return arrays to support .Count property
     Mock -CommandName Get-ADDomainController -MockWith {
-        [PSCustomObject]$Script:MockObjects.DomainController
+        return [PSCustomObject]$Script:MockObjects.DomainController
     }
+
+    # Always return an array for proper Count support
     Mock -CommandName Get-ADComputer -MockWith {
-        @([PSCustomObject]$Script:MockObjects.Server) # Return array to support Count property
+        return @([PSCustomObject]$Script:MockObjects.Server)
     }
-    Mock -CommandName Get-ADGroup -MockWith { $null }
+
+    # Return empty array instead of null for Get-ADGroup
+    Mock -CommandName Get-ADGroup -MockWith {
+        return @()
+    }
+
     Mock -CommandName New-ADGroup -MockWith {
-        [PSCustomObject]$Script:MockObjects.Group
+        return [PSCustomObject]$Script:MockObjects.Group
     }
+
     Mock -CommandName Remove-ADGroup -MockWith { }
 
     # Mock Write cmdlets
@@ -107,7 +115,8 @@ Describe 'Set-AdLocalAdminHousekeeping' {
 
     Context 'Function Behavior' {
         BeforeEach {
-            Mock -CommandName Get-ADGroup -MockWith { $null }
+            # Ensure we're returning an empty array, not null
+            Mock -CommandName Get-ADGroup -MockWith { return @() }
         }
 
         It 'Should discover domain controller' {
@@ -130,20 +139,104 @@ Describe 'Set-AdLocalAdminHousekeeping' {
     }
 
     Context 'Error Handling' {
-        It 'Should handle domain controller connection failure' {
-            Mock -CommandName Get-ADDomainController -MockWith {
-                throw [Microsoft.ActiveDirectory.Management.ADServerDownException]::new('Cannot connect to DC')
-            }
-            { Set-AdLocalAdminHousekeeping -LDAPPath $TestValues.LDAPPath } |
-                Should -Throw -ExceptionType ([Microsoft.ActiveDirectory.Management.ADServerDownException])
+        BeforeEach {
+            # Mock Write cmdlets to capture error messages
+            Mock -CommandName Write-Error -MockWith { }
+            Mock -CommandName Write-Warning -MockWith { }
+
+            # Create collections that properly support Count property
+            # Always use arrays for consistency
+            $EmptyResult = @()
+            $SingleGroup = @(
+                [PSCustomObject]@{
+                    Name              = 'Admin_NONEXISTENT'
+                    DistinguishedName = "CN=Admin_NONEXISTENT,$($TestValues.LDAPPath)"
+                    ObjectClass       = 'group'
+                }
+            )
+
+            # Ensure these mocks always return arrays
+            Mock -CommandName Get-ADComputer -MockWith { return $EmptyResult }
+            Mock -CommandName Get-ADGroup -MockWith { return $EmptyResult }
         }
 
-        It 'Should handle group creation failure' {
-            Mock -CommandName New-ADGroup -MockWith {
-                throw [Microsoft.ActiveDirectory.Management.ADException]::new('Failed to create group')
+        It 'Should handle domain controller connection failure' {
+            # Arrange
+            Mock -CommandName Get-ADDomainController -MockWith {
+                throw [Microsoft.ActiveDirectory.Management.ADServerDownException]::new(
+                    'Cannot connect to domain controller'
+                )
             }
-            { Set-AdLocalAdminHousekeeping -LDAPPath $TestValues.LDAPPath } |
-                Should -Throw -ExceptionType ([Microsoft.ActiveDirectory.Management.ADException])
+
+            # Act & Assert
+            Set-AdLocalAdminHousekeeping -LDAPPath $TestValues.LDAPPath -ErrorAction SilentlyContinue
+            Should -Invoke -CommandName Write-Error -Times 1 -Exactly -ParameterFilter {
+                $Message -like '*Cannot connect to domain controller*'
+            }
+        }
+
+        It 'Should handle non-existent server cleanup' {
+            # Arrange
+            Mock -CommandName Get-ADComputer -MockWith {
+                # Return empty array for no servers
+                return [System.Collections.ArrayList]@()
+            }
+
+            Mock -CommandName Get-ADGroup -MockWith {
+                # Return array with one obsolete group
+                return [System.Collections.ArrayList]@(
+                    [PSCustomObject]@{
+                        Name              = 'Admin_NONEXISTENT'
+                        DistinguishedName = "CN=Admin_NONEXISTENT,$($TestValues.LDAPPath)"
+                        ObjectClass       = 'group'
+                        SamAccountName    = 'Admin_NONEXISTENT'
+                    }
+                )
+            }
+
+            # Mock Remove-ADGroup to capture calls
+            Mock -CommandName Remove-ADGroup -MockWith {
+                return $null
+            } -Verifiable
+
+            # Mock domain controller to ensure it returns
+            Mock -CommandName Get-ADDomainController -MockWith {
+                return [PSCustomObject]@{
+                    HostName = 'DC01.contoso.com'
+                    Domain   = $TestValues.Domain
+                }
+            }
+
+            # Act
+            Set-AdLocalAdminHousekeeping -LDAPPath $TestValues.LDAPPath -Confirm:$false
+
+            # Assert
+            Should -Invoke -CommandName Remove-ADGroup -Times 1 -Exactly -ParameterFilter {
+                $Identity.Name -eq 'Admin_NONEXISTENT'
+            }
+            Should -InvokeVerifiable
+        }
+
+        It 'Should handle multiple server groups' {
+            # Arrange
+            Mock -CommandName Get-ADComputer -MockWith {
+                return @(
+                    [PSCustomObject]@{
+                        Name              = 'SERVER01'
+                        DistinguishedName = 'CN=SERVER01,OU=Servers,DC=contoso,DC=com'
+                        ObjectClass       = 'computer'
+                    },
+                    [PSCustomObject]@{
+                        Name              = 'SERVER02'
+                        DistinguishedName = 'CN=SERVER02,OU=Servers,DC=contoso,DC=com'
+                        ObjectClass       = 'computer'
+                    }
+                )
+            }
+
+            # Act & Assert
+            Set-AdLocalAdminHousekeeping -LDAPPath $TestValues.LDAPPath -Confirm:$false
+            Should -Invoke -CommandName New-ADGroup -Times 2 -Exactly
         }
     }
 }

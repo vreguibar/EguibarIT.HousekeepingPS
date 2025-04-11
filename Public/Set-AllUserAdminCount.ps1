@@ -13,6 +13,9 @@
         .PARAMETER SearchRootDN
             The Distinguished Name of the OU where the search should begin. This parameter is required if using the SubTree parameter.
 
+        .PARAMETER ExcludedUsers
+            List of user SamAccountNames to exclude from processing. Built-in accounts like Administrator and krbtgt are automatically excluded.
+
         .EXAMPLE
             Set-AllUserAdminCount
 
@@ -27,65 +30,116 @@
             -----------
             Clears the 'adminCount' attribute and resets inheritance on all user objects with 'adminCount = 1' in the specified OU.
 
+        .INPUTS
+            [System.String]
+            [System.Collections.Generic.List[string]]
+
         .OUTPUTS
-            Integer
-            Outputs the number of user objects modified.
+            [System.Int32]
+            Returns the number of user objects modified.
 
         .NOTES
-            Version:        1.1
-            Author:         Vicente Rodriguez Eguibar
-            Date:           08/Feb/2024
-            Contact:        vicente@eguibar.com
-            Company:        Eguibar Information Technology S.L.
-            http://www.eguibarit.com
+            Used Functions:
+                Name                    ║ Module/Namespace
+                ════════════════════════╬══════════════════════════════
+                Get-ADUser              ║ ActiveDirectory
+                Clear-AdminCount        ║ EguibarIT.HousekeepingPS
+                Test-IsValidDN          ║ EguibarIT.HousekeepingPS
+                Import-MyModule         ║ EguibarIT.HousekeepingPS
+
+        .NOTES
+            Version:        1.2
+            DateModified:    11/Apr/2025
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                            vicente@eguibar.com
+                            Eguibar IT
+                            http://www.eguibarit.com
+
+        .LINK
+            https://github.com/vreguibar/EguibarIT
+
+        .COMPONENT
+            Active Directory
+
+        .ROLE
+            Administrator
+
+        .FUNCTIONALITY
+            User Management
+            Security Management
+            AdminCount Cleanup
     #>
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        ConfirmImpact = 'Medium',
+        DefaultParameterSetName = 'Default'
+    )]
     [OutputType([int])]
 
     Param (
-        [Parameter(
-            Position = 0,
-            Mandatory = $false,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ParameterSetName = 'SubTree',
-            HelpMessage = 'Process user objects within a specific OU and its child OUs.'
-        )]
-        [switch]$SubTree,
+            ValueFromRemainingArguments = $false,
+            HelpMessage = 'Process group objects within a specific OU and its child OUs.',
+            Position = 0,
+            ParameterSetName = 'SubTree')]
+        [switch]
+        $SubTree,
 
         [Parameter(
-            Position = 1,
             Mandatory = $false,
+            ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ParameterSetName = 'SubTree',
-            HelpMessage = 'The Distinguished Name of the OU where the search starts.'
+            ValueFromRemainingArguments = $false,
+            HelpMessage = 'The Distinguished Name of the OU where the search starts.',
+            Position = 1,
+            ParameterSetName = 'SubTree')]
+        [ValidateScript(
+            { Test-IsValidDN -ObjectDN $_ },
+            ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
         )]
+        [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [string]
         $SearchRootDN,
 
-        [Parameter(
-            Position = 2,
-            Mandatory = $false,
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            HelpMessage = 'List of user SamAccountNames to exclude from processing (Administrator and krbtgt are already included).'
-        )]
+            ValueFromRemainingArguments = $false,
+            HelpMessage = 'List of group SamAccountNames to exclude from processing.',
+            Position = 2)]
+        [ValidateNotNull()]
         [System.Collections.Generic.List[string]]
-        $ExcludedUsers
+        $ExcludedGroups
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+        Set-StrictMode -Version Latest
+
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+
+        ##############################
+        # Module Import
+
+        Import-MyModule -Name ActiveDirectory -Verbose:$false
 
         ##############################
         # Variables Definition
 
-        $ObjectsChanged = 0
-        # Initialize a generic list to store ADUser objects
-        $UsersToProcess = [System.Collections.Generic.List[Microsoft.ActiveDirectory.Management.ADUser]]::New()
+        [int]$ObjectsChanged = 0
 
         # parameters variable for splatting CMDlets
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
@@ -101,16 +155,26 @@
         }
 
         foreach ($sid in $wellKnownUserSids.Keys) {
-            # For these SIDs, we always need to use the wildcard approach
-            $users = Get-ADUser -Filter * | Where-Object -FilterScript { $_.SID -like $sid }
+
+            $Splat.Clear()
+            $Splat['LDAPFilter'] = "(objectSid=*$sid)"
+            $Splat['Properties'] = @('SamAccountName')
+
+            $users = Get-ADUser @Splat
 
             foreach ($user in $users) {
+
                 if ($user -and ($user.SamAccountName -notin $ExcludedUsers)) {
                     $ExcludedUsers.Add($user.SamAccountName)
+                    Write-Verbose -Message ('Added well-known account to exclusion list: {0}' -f $user.SamAccountName)
+
                 } #end If
+
             } #end Foreach
+
         } #end Foreach
-    }
+
+    } #end Begin
 
     Process {
         try {
@@ -122,53 +186,79 @@
             if ($SubTree) {
                 $Splat['SearchBase'] = $SearchRootDN
                 $Splat['SearchScope'] = 'Subtree'
-            }
+            } #end If
 
             $users = Get-ADUser @Splat
 
             $totalUsers = $users.Count
 
-            Write-Verbose -Message ('Total users found: {0}' -f $totalUsers)
+            Write-Verbose -Message ('Total users found with adminCount=1: {0}' -f $totalUsers)
 
             foreach ($user in $Users) {
 
+                $currentIndex = $users.IndexOf($user) + 1
+
                 $Splat.Clear()
                 $Splat['Activity'] = 'Processing Users'
-                $Splat['Status'] = 'Processing {0} ({1} of {2})' -f $user.SamAccountName, ($users.IndexOf($user) + 1), $totalUsers
-                $Splat['PercentComplete'] = (($users.IndexOf($user) + 1) / $totalUsers) * 100
+                $Splat['Status'] = 'Processing {0} ({1} of {2})' -f $user.SamAccountName, $currentIndex, $totalUsers
+                $Splat['PercentComplete'] = ($currentIndex / $totalUsers) * 100
                 Write-Progress @Splat
 
                 # Skip certain built-in accounts
                 if ($User.SamAccountName -notin $ExcludedUsers) {
 
-                    if ($PSCmdlet.ShouldProcess($User.DistinguishedName, 'Clear adminCount and reset inheritance')) {
+                    if ($PSCmdlet.ShouldProcess(
+                            $User.DistinguishedName,
+                            'Clear adminCount and reset inheritance'
+                        )) {
 
                         $Result = Clear-AdminCount -SamAccountName $User.SamAccountName -Verbose:$VerbosePreference
 
                         if ($Result -like '*Updated*') {
+
                             $ObjectsChanged++
                             Write-Verbose -Message ('Updated user: {0}' -f $user.DistinguishedName)
+
                         } #end If
+
                     } #end If
+
                 } else {
+
                     Write-Verbose -Message ('
                         [Skipped]
                             Excluded user: {0}
                             ' -f $user.SamAccountName
                     )
-                }#end If
+
+                } #end If-else
+
             } #end Foreach
+
+        } catch [System.ArgumentException] {
+
+            Write-Error -Message $_.Exception.Message
+
         } catch {
-            Write-Error -Message ('An error occurred: {0}' -f $_)
+
+            Write-Error -Message ('An unexpected error occurred: {0}' -f $_.Exception.Message)
+
         } #end Try-Catch
+
     } #end Process
 
     End {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'processing AdminCount on user objects.'
-        )
-        Write-Verbose -Message $txt
+        Write-Progress -Activity 'Processing Users' -Completed
+
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'processing AdminCount on user objects.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
 
         return $ObjectsChanged
     } #end End
-}
+} #end Function Set-AllUserAdminCount

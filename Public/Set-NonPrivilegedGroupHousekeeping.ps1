@@ -40,7 +40,11 @@
                 Eguibar Information Technology S.L.
                 http://www.eguibarit.com
     #>
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        ConfirmImpact = 'Medium'
+    )]
     [OutputType([void])]
 
     Param (
@@ -48,11 +52,14 @@
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Admin User Account OU Distinguished Name (ej. "OU=Users,OU=Admin,DC=EguibarIT,DC=local").',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
+        [ValidateScript(
+            { Test-IsValidDN -ObjectDN $_ },
+            ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
+        )]
         [Alias('DN', 'DistinguishedName', 'LDAPPath')]
         [String]
         $AdminUsersDN,
@@ -60,11 +67,14 @@
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Tier0 root OU Distinguished Name (ej. "OU=Admin,DC=EguibarIT,DC=local").',
             Position = 1)]
         [ValidateNotNullOrEmpty()]
-        [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
+        [ValidateScript(
+            { Test-IsValidDN -ObjectDN $_ },
+            ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
+        )]
         [Alias('RootOU', 'Admin', 'AdminArea')]
         [String]
         $Tier0RootOuDN
@@ -72,12 +82,23 @@
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+        Set-StrictMode -Version Latest
+
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+
+        ##############################
+        # Module Import
 
         Import-MyModule ActiveDirectory -Force -Verbose:$false
 
@@ -98,7 +119,7 @@
         } catch {
             Write-Error -Message ('Error retrieving users from OU: {0}' -f $_)
             return
-        }
+        } #end Try-catch
 
         Write-Verbose -Message ('Found {0} semi privileged accounts (_T0, _T1, _T2)' -f $AllAdmin.Count)
 
@@ -154,7 +175,7 @@
                                 from group {1}: {2}' -f
                                 $admin.SamAccountName, $Group, $_
                             )
-                        }
+                        } #end Try-catch
 
                     } #end If
 
@@ -167,9 +188,13 @@
     } #end Process
 
     End {
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'removing Semi-Privileged user from non-compliant groups'
-        )
-        Write-Verbose -Message $txt
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'removing Semi-Privileged user from non-compliant groups'
+            )
+            Write-Verbose -Message $txt
+        } #end If
     } #end End
-}
+} #end Function Set-NonPrivilegedGroupHousekeeping
