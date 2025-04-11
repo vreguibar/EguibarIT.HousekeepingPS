@@ -1,106 +1,206 @@
-# GitHub Copilot Global Instructions
+# GitHub Copilot Instructions for PowerShell Function Development
 
-## Language
+This file provides instructions for GitHub Copilot when assisting with PowerShell function development for our modules.
+Additional code formatting instructions are on `.github/Code-Style.md` file
 
-PowerShell, version 7+, following strict professional, secure, and maintainable coding standards.
+## Function Structure
 
-## Expectations
+When creating new functions, please follow this structure:
 
-- Write functions as part of [EguibarIT.HousekeepingPS] PowerShell module, supporting Active Directory & Windows environments (Windows Server 2019–2025).
-- Follow tiered AD model and best security practices.
-- Optimize for scalability: 100,000+ objects.
-- Implement thorough parameter validation and comment-based help.
-- Include proper structure (CmdletBinding, Begin/Process/End, etc).
-- Maintain consistent style (PascalCase, strongly typed variables, 120-character line limit).
-- Write efficient, idempotent code with caching, pagination, and AD indexing where applicable.
-- Every function should be tested with Pester and include performance and error-path validation.
+```powershell
+function Verb-Noun {
 
-## Code Style
+    <#
 
-- Always include comment-based help, Write-Verbose, proper error handling.
-- Use Set-StrictMode, constants, and well-documented blocks.
-- Avoid deep nesting, use helper functions.
+        .SYNOPSIS
+            Brief description of function purpose.
 
-## Testing
+        .DESCRIPTION
+            Detailed description of function functionality.
 
-- Include Pester tests with [FunctionName].Tests.ps1.
-- Mock external dependencies.
+        .PARAMETER ParameterName
+            Description of parameter purpose and constraints.
 
-## Function Design
+        .EXAMPLE
+            Verb-Noun -ParameterName Value
+            Description of what this example does.
 
-When suggesting PowerShell functions:
+        .INPUTS
+            The .NET types of objects that can be piped to the function or script.
+            You can also include a description of the input objects.
 
-Always include these structural elements:
+        .OUTPUTS
+            The .NET type of the objects that the cmdlet returns.
+            You can also include a description of the returned objects.
 
-- Complete comment-based help (Synopsis, Description, Parameters, Examples, Notes)
-- [CmdletBinding()] with appropriate attributes
-- OutputType specification
-- Begin/Process/End blocks
-- Proper error handling with try/catch
+        .NOTES
+            Used Functions:
+                Name                             ║ Module/Namespace
+                ═════════════════════════════════╬══════════════════════════════
+                Get-ADObject                     ║ ActiveDirectory
+                Write-Verbose                    ║ Microsoft.PowerShell.Utility
+                Get-FunctionDisplay              ║ EguibarIT.HousekeepingPS
 
-Parameter design:
+        .NOTES
+            Version:         1.0
+            DateModified:    dd/MMM/yyyy
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                            vicente@eguibar.com
+                            Eguibar IT
+                            http://www.eguibarit.com
 
-- Include mandatory attribute where appropriate
-- Include proper parameter validation
-- Include help messages
-- Support pipeline input where appropriate
-- Use parameter sets when needed
+        .LINK
+            https://github.com/vreguibar/EguibarIT
 
-Begin block should include:
+        .COMPONENT
+            The name of the technology or feature that the function or script uses, or to which it's related.
 
-- Set-StrictMode -Version Latest
-- Required module imports
-- Variables and constants definitions
+        .ROLE
+            The name of the user role for the help topic.
 
-Error handling:
+        .FUNCTIONALITY
+            The keywords that describe the intended use of the function.
 
-- Use try/catch blocks with specific error types
-- Use appropriate messaging cmdlets (Verbose, Debug, Warning, Error)
+    #>
 
-## Code Style
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        ConfirmImpact = 'Medium',
+        DefaultParameterSetName = 'Default'
+    )]
+    [OutputType([System.Void])]
 
-Naming:
+    param (
+        [Parameter(
+            Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            HelpMessage = 'Description of parameter',
+            Position = 0,
+            ParameterSetName = 'Default'
+        )]
+        [ValidateNotNullOrEmpty()]
+        [ValidateScript(
+            { Test-IsValidDN -ObjectDN $_ },
+            ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
+        )]
+        [Alias('DN', 'DistinguishedName')]
+        [string]$Identity
+    )
 
-- Use PascalCase for variables and functions
-- Use descriptive names that indicate purpose
+    Begin {
+        # Set strict mode
+        Set-StrictMode -Version Latest
 
-Formatting:
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
 
-- Maximum line length: 120 characters
-- Use single quotes for strings
-- Use string formatting ('Text {0}' -f $variable)
-- Include end-of-block comments (} #end BlockName)
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToString('dd/MMM/yyyy'),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end if
 
-Security:
+        ##############################
+        # Module imports
 
-- Never include hardcoded credentials
-- Sanitize user input
-- Use SecureString for sensitive data
+        Import-Module -Name ActiveDirectory -Force -ErrorAction Stop
 
-Best Practices:
+        ##############################
+        # Variables Definition
 
-- Implement ShouldProcess for functions that make changes
-- Use parameter validation
-- Include progress indicators for lengthy operations
-- Cache results to minimize redundant queries
+        [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
-## Module Integration
+        Write-Verbose -Message 'Starting process'
 
-Structure:
+    } #end Begin
 
-Follow module folder structure (Public/Private/Classes/Enums/Tests)
+    Process {
 
-- Respect module naming conventions
-- Leverage existing module helper functions
+        try {
 
-Performance:
+            if ($PSCmdlet.ShouldProcess($Identity, 'Operation description')) {
+                # Main function code here
 
-- Optimize for large environments
-- Use efficient filtering methods
-- Implement pagination for large result sets
+                # Return Object
+                [PSCustomObject]@{
+                    Property1 = 'Value1'
+                    Property2 = 'Value2'
+                }
+            } #end If
+        } catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException] {
 
-Testing:
+            Write-Warning -Message ('Identity not found: {0}' -f $PSBoundParameters['Identity'])
 
-- Include Pester test framework files
-- Mock external dependencies
-- Test all parameter combinations and edge cases
+        } catch {
+
+            Write-Error -Message ('Error: {0}' -f $_.Exception.Message)
+
+        } #end Try-Catch
+
+    } #end Process
+
+    End {
+        # Display function footer if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.Footer -f $MyInvocation.InvocationName,
+                'process completed.'
+            )
+            Write-Verbose -Message $txt
+        } #end if
+    } #end End
+
+} #end function Verb-Noun
+```
+
+## Coding Standards
+
+1. **Naming Conventions**
+   - Use PascalCase for all variables, functions, and parameters
+   - Use approved PowerShell verbs
+   - Use singular nouns for function names
+
+2. **String Formatting**
+   - Use single quotes for strings without variables
+   - Use `-f` operator for string formatting: `'Text {0}' -f $Variable`
+
+3. **Error Handling**
+   - Use try/catch blocks with specific exception types when possible
+   - Provide meaningful error messages
+   - Use appropriate Write-* cmdlets based on severity
+
+4. **Parameter Design**
+   - Include proper validation attributes
+   - Add HelpMessage for all parameters
+   - Implement pipeline support where appropriate
+   - Use parameter sets for complex functions
+
+5. **Progress Reporting**
+   - Use Write-Progress for loops
+   - Use Write-Verbose for general process information
+   - Use Write-Debug for detailed troubleshooting info
+
+6. **Performance Considerations**
+   - Cache results when appropriate
+   - Use LDAP filters instead of client-side filtering
+   - Implement pagination for large result sets
+
+7. **Security Practices**
+   - Never include hardcoded credentials
+   - Use SecureString for sensitive data
+   - Validate all input
+   - Follow the principle of least privilege
+
+8. **Testing**
+   - Include Pester test files for each function
+   - Test parameter validation, functionality, and error handling
+
+9. **Documentation**
+   - Complete comment-based help
+   - Examples for common use cases
+   - Document return values and dependencies

@@ -27,6 +27,7 @@ You are writing a function for [EguibarIT.HousekeepingPS] module in a Windows Se
 
 Comment-Based Help
 
+```powershell
     <#
     .SYNOPSIS
         Brief description of function purpose.
@@ -64,10 +65,11 @@ Comment-Based Help
     .LINK
         https://github.com/vreguibar/EguibarIT
     #>
-
+```
 
 CmdletBinding and Parameters
 
+```powershell
     [CmdletBinding(
         SupportsShouldProcess = $true,
         ConfirmImpact = 'Medium',
@@ -89,9 +91,11 @@ CmdletBinding and Parameters
         [Parameter(Mandatory = $false)]
         [Switch]$PassThru
     )
+```
 
 Block Structure
 
+```powershell
     Begin {
         Set-StrictMode -Version Latest
 
@@ -119,6 +123,7 @@ Block Structure
         # Clean up or final actions
         Write-Verbose -Message 'Completed processing all items'
     } #end End
+```
 
 ## Performance Requirements
 
