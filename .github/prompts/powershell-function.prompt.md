@@ -99,17 +99,40 @@ Block Structure
     Begin {
         Set-StrictMode -Version Latest
 
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                    (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                    (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+        ##############################
         # Module imports
         Import-Module -Name ActiveDirectory -Force
 
+        ##############################
         # Variables Definition
+
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+        [hashtable]$SplatProgress = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
     } #end Begin
 
     Process {
         # Process logic here
         ForEach ($Item in $Identity) {
-            Write-Progress -Activity 'Processing items' -Status ('Processing {0}' -f $Item) -PercentComplete (($i++ / $Identity.Count) * 100)
+
+             $SplatProgress = @{
+                Activity        = 'Processing items'
+                Status          = ('Processing {0}' -f $Item)
+                PercentComplete = (($i++ / $Identity.Count) * 100)
+            }
+            Write-Progress @SplatProgress
 
             try {
                 # Main functionality
@@ -120,8 +143,17 @@ Block Structure
     } #end Process
 
     End {
-        # Clean up or final actions
-        Write-Verbose -Message 'Completed processing all items'
+        Write-Progress -Activity 'Processing objects' -Completed
+
+        # Display function footer if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'processing XXXXX XXXXX & XXXXX.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
     } #end End
 ```
 

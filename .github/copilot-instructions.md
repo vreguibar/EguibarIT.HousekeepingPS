@@ -50,7 +50,7 @@ function Verb-Noun {
                             http://www.eguibarit.com
 
         .LINK
-            https://github.com/vreguibar/EguibarIT
+            https://github.com/vreguibar/EguibarIT.HousekeepingPS
 
         .COMPONENT
             The name of the technology or feature that the function or script uses, or to which it's related.
@@ -149,7 +149,7 @@ function Verb-Noun {
             $null -ne $Variables.FooterHousekeeping) {
 
             $txt = ($Variables.Footer -f $MyInvocation.InvocationName,
-                'process completed.'
+                'processing xxxxx xxxxx & xxxxx.'
             )
             Write-Verbose -Message $txt
         } #end if

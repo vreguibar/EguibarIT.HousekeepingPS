@@ -77,9 +77,9 @@ This document outlines the coding style and best practices for PowerShell functi
             Version:         1.2
             DateModified:    7/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
-                        `vicente@eguibar.com`
+                        vicente@eguibar.com
                         Eguibar IT
-                        `http://www.eguibarit.com`
+                        http://www.eguibarit.com
   ```
 
   )
@@ -160,7 +160,7 @@ Begin block always include `Set-StrictMode -Version Latest`, display header, Mod
         $null -ne $Variables.FooterHousekeeping) {
 
         $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'processing AdminCount & Permissions.'
+            'processing xxxxx xxxxx & xxxxxx.'
         )
         Write-Verbose -Message $txt
     } #end If
