@@ -101,15 +101,15 @@ This document outlines the coding style and best practices for PowerShell functi
 - Always include ValueFromPipeline/ValueFromPipelineByPropertyName/ValueFromRemainingArguments either if True or False
 - HelpMessage for each parameter. Include short but understandable message.
 - Position parameter specification
-- Include appropriate validation attributes (e.g., `ValidateSet`, `ValidatePattern`, `ValidateLength`, `ValidateScript`, etc.)
 - When needed, define ParameterSetName when multiple parameter sets exist
+- Include appropriate validation attributes (e.g., `ValidateSet`, `ValidatePattern`, `ValidateLength`, `ValidateScript`, etc.)
 - Type constraints
 - Include appropriate pipeline support
 
 ### Begin, Process and End blocks
 
 - Always define Begin/Process/End blocks for efficiency.
-- Block endings explicitly marked with corresponding `#end Begin`, `#end Process`, `#end End`
+- Block endings explicitly marked with corresponding `#end Begin`, `#end Process`, `#end End`, `#end Function <Function Name>`
 - Use [PSCredential] and secure handling of credentials.
 - Inline documentation inside each code block
 
@@ -144,6 +144,7 @@ Begin block always include `Set-StrictMode -Version Latest`, display header, Mod
 
 - Handle both pipeline input and batch processing efficiently
 - Include appropriate progress indicators
+- Implement ShouldProcess if functions makes changes
 
 #### End Block
 
@@ -224,7 +225,7 @@ Begin block always include `Set-StrictMode -Version Latest`, display header, Mod
 
 ### Pester Tests
 
-- Create test files with naming convention `[FunctionName].Test.ps1`
+- Create test files with naming convention `[FunctionName].Tests.ps1` within the tests folder
 - Test parameter validation scenarios (valid/invalid inputs)
 - Test expected functionality with various input combinations
 - Test error handling

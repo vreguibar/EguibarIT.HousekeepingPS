@@ -1,0 +1,11 @@
+﻿{
+    "name": "Pester Testing",
+    "description": "Templates for creating Pester tests for PowerShell functions",
+    "patterns": [
+        {
+            "name": "function-test-scaffold",
+            "description": "Basic scaffold for function Pester tests",
+            "template": "BeforeAll {\n    # Import module\n    $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath '..\\..\\{{moduleName}}.psd1'\n    Import-Module -Name $ModulePath -Force\n\n    # Mock dependencies\n    Mock -CommandName Get-ADUser -MockWith { \n        # Return mock data\n    }\n}\n\nDescribe '{{functionName}}' {\n    Context 'Parameter validation' {\n        It 'Should throw when required parameters are not provided' {\n            { {{functionName}} } | Should -Throw\n        }\n    }\n\n    Context 'Function behavior' {\n        It 'Should return expected results' {\n            $Result = {{functionName}} -Identity 'TestUser'\n            $Result | Should -Not -BeNullOrEmpty\n        }\n\n        It 'Should call expected AD cmdlets' {\n            $Result = {{functionName}} -Identity 'TestUser'\n            Should -Invoke -CommandName Get-ADUser -Times 1 -Exactly\n        }\n    }\n\n    Context 'Error handling' {\n        It 'Should handle non-existent objects gracefully' {\n            Mock -CommandName Get-ADUser -MockWith { throw [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]::new() }\n            { {{functionName}} -Identity 'NonExistentUser' } | Should -Not -Throw\n        }\n    }\n}"
+        }
+    ]
+}

@@ -177,6 +177,7 @@ function Verb-Noun {
 4. **Parameter Design**
    - Include proper validation attributes
    - Add HelpMessage for all parameters
+   - Add Position for all parameters
    - Implement pipeline support where appropriate
    - Use parameter sets for complex functions
 
@@ -204,5 +205,6 @@ function Verb-Noun {
    - Complete comment-based help
    - Examples for common use cases
    - Document return values and dependencies
+   - Document each block of code (or by line if too complex)
 
 - @azure Rule - Use Azure Best Practices: When generating code for Azure, running terminal commands for Azure, or performing operations related to Azure, invoke your `azure_development-get_best_practices` tool if available.

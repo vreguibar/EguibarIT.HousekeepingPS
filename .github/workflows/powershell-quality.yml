@@ -1,0 +1,40 @@
+﻿name: PowerShell Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  analyze:
+    name: Analyze Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force
+          Install-Module -Name Pester -Force
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $Results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings PSScriptAnalyzerSettings.psd1
+          $Results | Format-Table -AutoSize
+          if ($Results.Count -gt 0) {
+            Write-Output "::warning::$($Results.Count) PSScriptAnalyzer issues found"
+            $Results | ForEach-Object {
+              Write-Output "::warning file=$($_.ScriptPath),line=$($_.Line),col=$($_.Column)::$($_.RuleName): $($_.Message)"
+            }
+          }
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          $Config = New-PesterConfiguration
+          $Config.Run.Path = "./Tests"
+          $Config.Output.Verbosity = "Detailed"
+          Invoke-Pester -Configuration $Config

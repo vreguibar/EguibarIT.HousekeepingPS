@@ -1,0 +1,16 @@
+﻿{
+    "name": "AD Operations",
+    "description": "Patterns and templates for Active Directory operations",
+    "patterns": [
+        {
+            "name": "get-ad-objects-paged",
+            "description": "Get AD objects with paging for large result sets",
+            "template": "# Get AD objects with paging\n$PageSize = 1000\n$SearchBase = \"{{searchBase}}\"\n$Filter = \"{{filter}}\"\n$Properties = @(\"{{properties}}\")\n\n$Results = @()\n$Searcher = New-Object DirectoryServices.DirectorySearcher([ADSI]\"LDAP://$SearchBase\")\n$Searcher.PageSize = $PageSize\n$Searcher.Filter = $Filter\n$Searcher.SearchScope = \"Subtree\"\n$Properties | ForEach-Object { $Searcher.PropertiesToLoad.Add($_) | Out-Null }\n\n$PagedResults = $Searcher.FindAll()\nforeach ($Entry in $PagedResults) {\n    $Results += [PSCustomObject]@{\n        # Map properties here\n    }\n}\n$PagedResults.Dispose()\n$Searcher.Dispose()\n\nreturn $Results"
+        },
+        {
+            "name": "secure-credential-handling",
+            "description": "Handle credentials securely in AD operations",
+            "template": "# Handle credentials securely\nparam(\n    [Parameter(Mandatory = $false)]\n    [System.Management.Automation.PSCredential]\n    [System.Management.Automation.Credential()]\n    $Credential = [System.Management.Automation.PSCredential]::Empty\n)\n\n$ADParams = @{\n    'Server' = $Server\n}\n\nif ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {\n    $ADParams.Add('Credential', $Credential)\n}\n\n# Use $ADParams with splatting\nGet-ADUser @ADParams -Filter $Filter"
+        }
+    ]
+}

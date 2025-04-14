@@ -171,7 +171,7 @@ End {
         $null -ne $Variables.FooterHousekeeping) {
 
         $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'processing all objects.'
+            'processing XXXXX XXXXX & XXXXX.'
         )
         Write-Verbose -Message $txt
     } #end If
