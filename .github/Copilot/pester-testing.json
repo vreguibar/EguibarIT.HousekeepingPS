@@ -1,11 +1,79 @@
 ﻿{
     "name": "Pester Testing",
     "description": "Templates for creating Pester tests for PowerShell functions",
+    "version": "1.0.0",
     "patterns": [
         {
             "name": "function-test-scaffold",
             "description": "Basic scaffold for function Pester tests",
             "template": "BeforeAll {\n    # Import module\n    $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath '..\\..\\{{moduleName}}.psd1'\n    Import-Module -Name $ModulePath -Force\n\n    # Mock dependencies\n    Mock -CommandName Get-ADUser -MockWith { \n        # Return mock data\n    }\n}\n\nDescribe '{{functionName}}' {\n    Context 'Parameter validation' {\n        It 'Should throw when required parameters are not provided' {\n            { {{functionName}} } | Should -Throw\n        }\n    }\n\n    Context 'Function behavior' {\n        It 'Should return expected results' {\n            $Result = {{functionName}} -Identity 'TestUser'\n            $Result | Should -Not -BeNullOrEmpty\n        }\n\n        It 'Should call expected AD cmdlets' {\n            $Result = {{functionName}} -Identity 'TestUser'\n            Should -Invoke -CommandName Get-ADUser -Times 1 -Exactly\n        }\n    }\n\n    Context 'Error handling' {\n        It 'Should handle non-existent objects gracefully' {\n            Mock -CommandName Get-ADUser -MockWith { throw [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]::new() }\n            { {{functionName}} -Identity 'NonExistentUser' } | Should -Not -Throw\n        }\n    }\n}"
+        },
+        {
+            "name": "Pester.Describe",
+            "pattern": "Describe\\s+['\"]([^'\"]+)['\"]\\s+{",
+            "description": "Pester test describe block"
+        },
+        {
+            "name": "Pester.Context",
+            "pattern": "Context\\s+['\"]([^'\"]+)['\"]\\s+{",
+            "description": "Pester test context block"
+        },
+        {
+            "name": "Pester.It",
+            "pattern": "It\\s+['\"]([^'\"]+)['\"]\\s+{",
+            "description": "Pester test case"
+        },
+        {
+            "name": "Pester.BeforeAll",
+            "pattern": "BeforeAll\\s+{",
+            "description": "Pester BeforeAll setup block"
+        },
+        {
+            "name": "Pester.AfterAll",
+            "pattern": "AfterAll\\s+{",
+            "description": "Pester AfterAll cleanup block"
+        },
+        {
+            "name": "Pester.BeforeEach",
+            "pattern": "BeforeEach\\s+{",
+            "description": "Pester BeforeEach setup block"
+        },
+        {
+            "name": "Pester.AfterEach",
+            "pattern": "AfterEach\\s+{",
+            "description": "Pester AfterEach cleanup block"
+        },
+        {
+            "name": "Pester.Mock",
+            "pattern": "Mock\\s+-CommandName\\s+['\"](\\w+[-\\w]*)['\"]",
+            "description": "Pester mock definition"
+        },
+        {
+            "name": "Pester.Should",
+            "pattern": "Should\\s+-([A-Za-z]+)",
+            "description": "Pester assertion"
+        },
+        {
+            "name": "Pester.ShouldInvoke",
+            "pattern": "Should\\s+-Invoke\\s+['\"](\\w+[-\\w]*)['\"]",
+            "description": "Pester mock verification"
+        }
+    ],
+    "snippets": [
+        {
+            "name": "PesterTestFunction",
+            "code": "Describe '$functionName' {\n    BeforeAll {\n        # Import module\n        $ModuleName = 'EguibarIT.HousekeepingPS'\n        $PathToManifest = [System.IO.Path]::Combine('..', '..', $ModuleName, \"$ModuleName.psd1\")\n        Import-Module -Name $PathToManifest -Force\n\n        # Mock dependencies\n        Mock -CommandName Get-ADObject -MockWith {\n            [PSCustomObject]@{\n                DistinguishedName = 'CN=Test,DC=contoso,DC=com'\n                ObjectClass = 'user'\n            }\n        }\n    }\n\n    Context 'Parameter validation' {\n        # Test implementation\n    }\n\n    AfterAll {\n        Remove-Module -Name $ModuleName -Force\n    }\n}",
+            "description": "Basic Pester test function structure"
+        },
+        {
+            "name": "PesterMock",
+            "code": "Mock -CommandName '$commandName' -MockWith {\n    [PSCustomObject]@{\n        Property1 = 'Value1'\n        Property2 = 'Value2'\n    }\n}",
+            "description": "Pester mock with return object"
+        },
+        {
+            "name": "PesterParameterTests",
+            "code": "Context 'Parameter validation' {\n    BeforeAll {\n        $Command = Get-Command -Name $FunctionName\n    }\n\n    It 'Should have the correct parameter attributes' {\n        $Command | Should -HaveParameter -ParameterName '$parameterName' -Mandatory\n    }\n}",
+            "description": "Pester tests for function parameters"
         }
     ]
 }

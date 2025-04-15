@@ -1,11 +1,14 @@
 # GitHub Copilot Instructions for PowerShell Function Development
 
-This file provides instructions for GitHub Copilot when assisting with PowerShell function development for our modules.
-Additional code formatting instructions are on `.github/Code-Style.md` file
+This file provides specific instructions for GitHub Copilot when assisting with PowerShell function development for our modules.
 
-## Function Structure
+## Primary Instructions
 
-When creating new functions, please follow this structure:
+- Always follow the comprehensive coding standards defined in [Code-Style.md](./Code-Style.md)
+- Use the function template provided below when creating new functions
+- For detailed guidance on documentation, testing, and performance considerations, refer to [Code-Style.md](./Code-Style.md)
+
+## Function Template
 
 ```powershell
 function Verb-Noun {
@@ -158,53 +161,28 @@ function Verb-Noun {
 } #end function Verb-Noun
 ```
 
-## Coding Standards
+## Copilot-Specific Guidance
 
-1. **Naming Conventions**
-   - Use PascalCase for all variables, functions, and parameters
-   - Use approved PowerShell verbs
-   - Use singular nouns for function names
+When generating code for our module, please follow these specific directives:
 
-2. **String Formatting**
-   - Use single quotes for strings without variables
-   - Use `-f` operator for string formatting: `'Text {0}' -f $Variable`
+1. **Prioritize Security**: Ensure all generated functions follow security best practices including:
+   - Input validation
+   - Proper error handling
+   - Least privilege principles
+   - Secure credential handling
 
-3. **Error Handling**
-   - Use try/catch blocks with specific exception types when possible
-   - Provide meaningful error messages
-   - Use appropriate Write-* cmdlets based on severity
+2. **Performance Focus**: Our module handles large AD environments (100k+ objects), so always prioritize:
+   - Using LDAP filters over client-side filtering
+   - Implementing pagination
+   - Minimizing redundant queries
 
-4. **Parameter Design**
-   - Include proper validation attributes
-   - Add HelpMessage for all parameters
-   - Add Position for all parameters
-   - Implement pipeline support where appropriate
-   - Use parameter sets for complex functions
+3. **Code Completeness**: Always include:
+   - Full comment-based help
+   - Parameter validation
+   - Begin/Process/End blocks
+   - Error handling with specific exception types
+   - Progress reporting for long-running operations
 
-5. **Progress Reporting**
-   - Use Write-Progress for loops
-   - Use Write-Verbose for general process information
-   - Use Write-Debug for detailed troubleshooting info
+4. **Azure Integration**: When generating Azure-related code, apply Azure best practices and use the standard Azure PowerShell patterns.
 
-6. **Performance Considerations**
-   - Cache results when appropriate
-   - Use LDAP filters instead of client-side filtering
-   - Implement pagination for large result sets
-
-7. **Security Practices**
-   - Never include hardcoded credentials
-   - Use SecureString for sensitive data
-   - Validate all input
-   - Follow the principle of least privilege
-
-8. **Testing**
-   - Include Pester test files for each function
-   - Test parameter validation, functionality, and error handling
-
-9. **Documentation**
-   - Complete comment-based help
-   - Examples for common use cases
-   - Document return values and dependencies
-   - Document each block of code (or by line if too complex)
-
-- @azure Rule - Use Azure Best Practices: When generating code for Azure, running terminal commands for Azure, or performing operations related to Azure, invoke your `azure_development-get_best_practices` tool if available.
+For comprehensive coding standards, please refer to [Code-Style.md](./Code-Style.md).

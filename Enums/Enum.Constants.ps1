@@ -1,4 +1,11 @@
-﻿$Constants = [ordered] @{
+﻿<#
+        This file contains constant values used across the EguibarIT.HousekeepingPS module.
+        These constants provide standardized values for commonly used items like
+        object categories, container types, etc.
+
+#>
+
+$Constants = [ordered] @{
 
     # Null GUID which is considered as "All"
     #$guidNull  = New-Object -TypeName Guid -ArgumentList 00000000-0000-0000-0000-000000000000

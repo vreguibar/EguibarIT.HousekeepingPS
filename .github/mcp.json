@@ -184,6 +184,62 @@
                     }
                 }
             }
+        },
+        {
+            "name": "EguibarIT.HousekeepingPS",
+            "description": "PowerShell module for housekeeping tasks in Active Directory and related systems",
+            "include": [
+                "**/*.ps1",
+                "**/*.psm1",
+                "**/*.psd1"
+            ],
+            "contextConfig": {
+                "promptFiles": [
+                    ".github/prompts/function-template.prompt.md",
+                    ".github/prompts/test-template.prompt.md"
+                ]
+            },
+            "settings": {
+                "guidelines": {
+                    "codeStyle": {
+                        "usePascalCaseForVariables": true,
+                        "useStronglyTypedVariables": true,
+                        "maxLineLength": 120,
+                        "useSingleQuotesForStrings": true,
+                        "useFormattedStrings": true,
+                        "includeBlockComments": true
+                    },
+                    "functionStructure": {
+                        "includeCommentBasedHelp": true,
+                        "includeCmdletBinding": true,
+                        "includeOutputType": true,
+                        "useParameterValidation": true,
+                        "includeBeginProcessEndBlocks": true,
+                        "includeErrorHandling": true,
+                        "includeStrictMode": true
+                    },
+                    "securityPractices": {
+                        "avoidHardcodedCredentials": true,
+                        "sanitizeUserInput": true,
+                        "useSecureStringForSensitiveData": true,
+                        "implementLeastPrivilegePrinciple": true
+                    },
+                    "performance": {
+                        "supportBatchProcessing": true,
+                        "optimizeForLargeEnvironments": true,
+                        "minimizeRedundantQueries": true,
+                        "useEfficientFiltering": true,
+                        "implementPagination": true
+                    },
+                    "testing": {
+                        "includePesterTests": true,
+                        "mockExternalDependencies": true,
+                        "testParameterValidation": true,
+                        "testErrorHandling": true,
+                        "testEdgeCases": true
+                    }
+                }
+            }
         }
     ]
 }

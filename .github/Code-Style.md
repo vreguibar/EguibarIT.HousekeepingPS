@@ -1,6 +1,6 @@
 ﻿# PowerShell Coding Style Guide
 
-This document outlines the coding style and best practices for PowerShell functions in [EguibarIT.HousekeepingPS] module.
+This document serves as the primary source of truth for coding style and best practices for PowerShell functions in [EguibarIT.HousekeepingPS] module. GitHub Copilot and all developers should adhere to these standards.
 
 ## Structure
 

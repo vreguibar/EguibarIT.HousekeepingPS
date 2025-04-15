@@ -1,6 +1,7 @@
 ﻿{
     "name": "AD Operations",
     "description": "Patterns and templates for Active Directory operations",
+    "version": "1.0.0",
     "patterns": [
         {
             "name": "get-ad-objects-paged",
@@ -11,6 +12,68 @@
             "name": "secure-credential-handling",
             "description": "Handle credentials securely in AD operations",
             "template": "# Handle credentials securely\nparam(\n    [Parameter(Mandatory = $false)]\n    [System.Management.Automation.PSCredential]\n    [System.Management.Automation.Credential()]\n    $Credential = [System.Management.Automation.PSCredential]::Empty\n)\n\n$ADParams = @{\n    'Server' = $Server\n}\n\nif ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {\n    $ADParams.Add('Credential', $Credential)\n}\n\n# Use $ADParams with splatting\nGet-ADUser @ADParams -Filter $Filter"
+        },
+        {
+            "name": "GetADObject",
+            "pattern": "Get-ADObject\\s+-(?:Identity|Filter)\\s+['\"](.*?)['\"]",
+            "description": "Active Directory object retrieval"
+        },
+        {
+            "name": "GetADUser",
+            "pattern": "Get-ADUser\\s+-(?:Identity|Filter)\\s+['\"](.*?)['\"]",
+            "description": "Active Directory user retrieval"
+        },
+        {
+            "name": "GetADGroup",
+            "pattern": "Get-ADGroup\\s+-(?:Identity|Filter)\\s+['\"](.*?)['\"]",
+            "description": "Active Directory group retrieval"
+        },
+        {
+            "name": "GetADComputer",
+            "pattern": "Get-ADComputer\\s+-(?:Identity|Filter)\\s+['\"](.*?)['\"]",
+            "description": "Active Directory computer retrieval"
+        },
+        {
+            "name": "NewADObject",
+            "pattern": "New-AD(?:User|Group|Computer|OrganizationalUnit)\\s+-Name\\s+['\"](.*?)['\"]",
+            "description": "Active Directory object creation"
+        },
+        {
+            "name": "SetADObject",
+            "pattern": "Set-AD(?:User|Group|Computer|OrganizationalUnit)\\s+-Identity\\s+['\"](.*?)['\"]",
+            "description": "Active Directory object modification"
+        },
+        {
+            "name": "RemoveADObject",
+            "pattern": "Remove-AD(?:User|Group|Computer|OrganizationalUnit)\\s+-Identity\\s+['\"](.*?)['\"]",
+            "description": "Active Directory object deletion"
+        },
+        {
+            "name": "LDAP.Filter",
+            "pattern": "-LDAPFilter\\s+['\"](.*?)['\"]",
+            "description": "LDAP filter usage"
+        },
+        {
+            "name": "DistinguishedName",
+            "pattern": "CN=(?:[^,]+),(?:OU=[^,]+,)*DC=[^,]+(?:,DC=[^,]+)*",
+            "description": "Distinguished name format in Active Directory"
+        }
+    ],
+    "snippets": [
+        {
+            "name": "Get-ADUserExample",
+            "code": "Get-ADUser -Filter {SamAccountName -eq '$samAccountName'} -Properties * -Server $DomainController",
+            "description": "Get AD user with all properties"
+        },
+        {
+            "name": "New-ADUserExample",
+            "code": "New-ADUser -Name '$name' -SamAccountName '$samAccountName' -UserPrincipalName '$upn' -Path '$ouPath' -Server $DomainController",
+            "description": "Create new AD user"
+        },
+        {
+            "name": "LDAP-Filter-Example",
+            "code": "Get-ADObject -LDAPFilter '(&(objectClass=user)(objectCategory=person)(samAccountName=$samAccountName))' -Server $DomainController",
+            "description": "LDAP filter example for finding users"
         }
     ]
 }

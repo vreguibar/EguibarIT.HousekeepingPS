@@ -43,7 +43,7 @@ Foreach ($Item in @($Private + $Public)) {
     }
 }
 
-Export-ModuleMember -Function '*' -Alias '*'
+Export-ModuleMember -Function $Public.BaseName -Alias '*'
 
 # Call function Initialize-ModuleVariable to fill-up $Variables
 # . "$PSScriptRoot\Private\Initialize-ModuleVariable"
