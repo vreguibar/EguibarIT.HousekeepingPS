@@ -238,7 +238,8 @@
             Write-Verbose -Message $txt
         } #end If
 
-        # Return results as array
-        return @($Script:results)
+        # Return results consistently as an array
+        # Convert to array to ensure consistent output format
+        return @($Script:results.ToArray())
     } #end End
 } #end Function Clear-AdminCount

@@ -195,4 +195,4 @@
 
         return $result
     } #end End
-} #end Function Clear-DeliveryOptimizationFiles
+} #end Function Clear-DeliveryOptimizationFile

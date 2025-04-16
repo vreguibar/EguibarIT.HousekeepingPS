@@ -43,7 +43,7 @@
                 Get-FunctionDisplay                        ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.1
+            Version:         1.2
             DateModified:    7/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
                             vicente@eguibar.com
@@ -55,16 +55,17 @@
             https://docs.microsoft.com/en-us/mem/configmgr/core/clients/manage/manage-clients
     #>
 
-    [CmdletBinding(
-        SupportsShouldProcess = $true,
-        ConfirmImpact = 'Medium'
-    )]
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([PSCustomObject])]
 
     param (
-        [Parameter(Mandatory = $false)]
-        [switch]
-        $Force
+        [Parameter(
+            Mandatory = $false,
+            ValueFromPipeline = $false,
+            ValueFromPipelineByPropertyName = $false,
+            HelpMessage = 'If specified, suppresses confirmation prompts. Use with caution.'
+        )]
+        [switch]$Force
     )
 
     Begin {
@@ -81,7 +82,6 @@
             )
             Write-Verbose -Message $txt
         } #end If
-
 
         ##############################
         # Module Import
@@ -101,6 +101,10 @@
         # Cache folder path
         [string]$cachePath = Join-Path -Path $env:SystemDrive -ChildPath 'Windows\ccmcache'
 
+        # Initialize variables we'll be using
+        $UIResourceMgr = $null
+        $Cache = $null
+        $CacheElements = $null
     } #end Begin
 
     Process {
@@ -115,17 +119,22 @@
 
                 # Calculate initial cache size
                 if (Test-Path -Path $cachePath) {
-
-                    $initialSize = (Get-ChildItem -Path $cachePath -Recurse -File |
-                            Measure-Object -Property Length -Sum).Sum
-                    $result.CacheSize = $initialSize
-                    Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
-
+                    try {
+                        $initialSize = (Get-ChildItem -Path $cachePath -Recurse -File -ErrorAction SilentlyContinue |
+                                Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum
+                        if ($null -eq $initialSize) {
+                            $initialSize = 0
+                        }
+                        $result.CacheSize = $initialSize
+                        Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
+                    } catch {
+                        Write-Debug -Message "Error calculating cache size: $($_.Exception.Message)"
+                        # Just continue if we can't calculate the cache size
+                    }
                 } #end if
 
                 # Initialize COM object with error handling
                 try {
-
                     $UIResourceMgr = New-Object -ComObject 'UIResource.UIResourceMgr'
                     $Cache = $UIResourceMgr.GetCacheInfo()
                     $CacheElements = $Cache.GetCacheElements()
@@ -133,32 +142,34 @@
                     $totalItems = $CacheElements.Count
                     Write-Verbose -Message ('Found {0} items in CCM cache' -f $totalItems)
 
-                    foreach ($Element in $CacheElements) {
+                    # If no items, set success but with zero items
+                    if ($totalItems -eq 0) {
+                        $result.Success = $true
+                        $result.Message = 'Cache is already empty'
+                        return $result
+                    }
 
+                    foreach ($Element in $CacheElements) {
                         $message = ('Delete cache element: ID={0}, Location={1}' -f
                             $Element.ContentID, $Element.Location)
 
                         if ($Force -or $PSCmdlet.ShouldProcess($message, 'Clear CCM Cache')) {
-
                             try {
-
                                 $Cache.DeleteCacheElement($Element.CacheElementID)
                                 $result.ItemsCleared++
                                 Write-Debug -Message ('Successfully deleted: {0}' -f $Element.Location)
-
                             } catch {
-
                                 $errorMsg = ('Failed to delete {0}: {1}' -f
                                     $Element.ContentID, $_.Exception.Message)
                                 Write-Warning -Message $errorMsg
                                 $result.Errors += $errorMsg
-
                             } #end try-catch
-
                         } #end if
 
-                        Write-Progress -Activity 'Clearing CCM Cache' -Status $message `
-                            -PercentComplete (($result.ItemsCleared / $totalItems) * 100)
+                        if ($totalItems -gt 0) {
+                            Write-Progress -Activity 'Clearing CCM Cache' -Status $message `
+                                -PercentComplete (($result.ItemsCleared / $totalItems) * 100)
+                        }
                     } #end foreach
 
                     $result.Success = $true
@@ -174,38 +185,40 @@
             } #end if-else
 
         } catch {
-
             if (Test-Path -Path $cachePath) {
-
                 $warning = 'CCM cache folder exists but client is not properly installed'
                 Write-Warning -Message $warning
                 $result.Message = $warning
-
             } else {
-
                 $info = 'No CCM client or cache folder found'
                 Write-Verbose -Message $info
                 $result.Message = $info
-
             } #end if-else
 
             Write-Error -Message ('Error processing CCM cache: {0}' -f $_.Exception.Message)
             $result.Errors += $_.Exception.Message
-
         } finally {
-
+            # Clean up COM objects safely
             if ($null -ne $UIResourceMgr) {
+                try {
+                    # Only try to release if it's a real COM object
+                    if ($UIResourceMgr.GetType().FullName -eq '__ComObject') {
+                        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($UIResourceMgr) | Out-Null
+                    }
+                } catch {
+                    # Just absorb any errors here
+                    Write-Debug -Message "Error releasing COM object: $($_.Exception.Message)"
+                }
 
-                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($UIResourceMgr) | Out-Null
-                Remove-Variable -Name UIResourceMgr -ErrorAction SilentlyContinue
-                [System.GC]::Collect()
+                # This is always safe
+                $UIResourceMgr = $null
+            }
 
-            } #end if
+            # Request garbage collection
+            [System.GC]::Collect()
 
+            Write-Progress -Activity 'Clearing CCM Cache' -Completed
         } #end try-catch-finally
-
-        Write-Progress -Activity 'Clearing CCM Cache' -Completed
-
     } #end Process
 
     End {
