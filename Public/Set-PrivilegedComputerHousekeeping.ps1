@@ -46,19 +46,28 @@
 
         .NOTES
             Used Functions:
-                Name                                   | Module
-                ---------------------------------------|--------------------------
-                Get-ADComputer                         | ActiveDirectory
-                Remove-ADGroupMember                   | ActiveDirectory
-                Add-ADGroupMember                      | ActiveDirectory
-                Import-Module                          | Microsoft.PowerShell.Core
-                Write-Verbose                          | Microsoft.PowerShell.Utility
-                Write-Progress                         | Microsoft.PowerShell.Utility
-                Get-FunctionToDisplay                  | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
-                Test-IsValidDN                         | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
-                Get-AdObjectType                       | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
+                Name                                   ║ Module
+                =======================================╬==========================
+                Get-ADComputer                         ║ ActiveDirectory
+                Remove-ADGroupMember                   ║ ActiveDirectory
+                Add-ADGroupMember                      ║ ActiveDirectory
+                Import-Module                          ║ Microsoft.PowerShell.Core
+                Write-Verbose                          ║ Microsoft.PowerShell.Utility
+                Write-Progress                         ║ Microsoft.PowerShell.Utility
+                Get-FunctionDisplay                    ║ EguibarIT.HousekeepingPS
+                Test-IsValidDN                         ║ EguibarIT.HousekeepingPS
+                Get-AdObjectType                       ║ EguibarIT.HousekeepingPS
+
+        .NOTES
+            Version:         1.0
+            DateModified:    17/May/2024
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                        vicente@eguibar.com
+                        Eguibar IT
+                        http://www.eguibarit.com
 
         .LINK
+            https://github.com/vreguibar/EguibarIT.HousekeepingPS
             https://www.delegationmodel.com/
 
     #>
@@ -71,7 +80,7 @@
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Admin Groups OU Distinguished Name.',
             Position = 0)]
         [ValidateScript({ Test-IsValidDN -ObjectDN $_ }, ErrorMessage = 'DistinguishedName provided is not valid! Please Check.')]
@@ -82,7 +91,7 @@
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Identity of the group of all Infrastructure Servers.',
             Position = 1)]
         [ValidateNotNullOrEmpty()]
@@ -92,129 +101,154 @@
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
-            ValueFromRemainingArguments = $true,
+            ValueFromRemainingArguments = $false,
             HelpMessage = 'Identity of the group of all PAWs.',
             Position = 2)]
         [ValidateNotNullOrEmpty()]
         [Alias('Paws', 'AllPaws', 'PawGroupID')]
         $PawGroup
-
     )
 
     Begin {
-        $txt = ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
+        # Set strict mode
+        Set-StrictMode -Version Latest
+
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToShortDateString(),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
+
+        ##############################
+        # Module Import
 
         Import-MyModule ActiveDirectory
 
         ##############################
         # Variables Definition
 
-        # parameters variable for splatting CMDlets
+        # Parameters variable for splatting cmdlets
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
 
         [int]$i = 0
 
-        $stats = @{
+        [hashtable]$stats = @{
             NewServer = 0
             NewPAW    = 0
         }
 
         # Lists for computers
-        $AllPrivComputers = [System.Collections.Generic.List[Object]]::new()
+        [System.Collections.Generic.List[Object]]$AllPrivComputers = [System.Collections.Generic.List[Object]]::new()
 
         # Get Infrastructure Servers group
-        $InfraGroup = Get-AdObjectType -Identity $PsBoundParameters['InfraGroup']
-        if (-not $InfraGroup) {
+        $InfraGroupObj = Get-AdObjectType -Identity $PsBoundParameters['InfraGroup']
+        if (-not $InfraGroupObj) {
             Throw "Infrastructure Servers group ($InfraGroup) not found."
         } #end If
 
-        $PawGroup = Get-AdObjectType -Identity $PsBoundParameters['PawGroup']
-        if (-not $PawGroup) {
+        $PawGroupObj = Get-AdObjectType -Identity $PsBoundParameters['PawGroup']
+        if (-not $PawGroupObj) {
             Throw "PAW group ($PawGroup) not found."
         } #end If
 
     } #end Begin
 
     Process {
+        try {
+            Write-Verbose -Message 'Getting the list of ALL T0 servers and PAW computers.'
+            [string[]]$Props = @(
+                'OperatingSystem',
+                'SamAccountName',
+                'DistinguishedName'
+            )
 
-        Write-Verbose -Message 'Getting the list of ALL T0 servers and PAW computers.'
-        $Props = @(
-            'OperatingSystem',
-            'SamAccountName',
-            'DistinguishedName'
-        )
-
-        $Splat = @{
-            Filter     = '*'
-            Properties = $Props
-            SearchBase = $PsBoundParameters['SearchRootDN']
-        }
-        $AllPrivComputers = Get-ADComputer @Splat | Select-Object -Property $Props
-
-        $TotalObjectsFound = $AllPrivComputers.Count
-        if ($TotalObjectsFound -eq 0) {
-            Write-Verbose -Message ('No computers found in the search root: {0}.' -f $SearchRootDN)
-            return
-        } #end If
-
-        # Iterate all found items
-        Foreach ($item in $AllPrivComputers) {
-            $i ++
-
-            $error.Clear()
-
-            # Display the progress bar
-            $parameters = @{
-                Activity        = 'Checking computers within Admin Area'
-                Status          = "Working on item No. $i from $TotalObjectsFound"
-                PercentComplete = ($i / $TotalObjectsFound * 100)
+            $Splat = @{
+                Filter     = '*'
+                Properties = $Props
+                SearchBase = $PsBoundParameters['SearchRootDN']
             }
-            Write-Progress @parameters
+            $AllPrivComputers = Get-ADComputer @Splat | Select-Object -Property $Props
 
-            # exclude all computers within Housekeeping
-            if ($item.DistinguishedName -notlike '*Housekeeping*') {
-
-                $targetGroup = if ($item.OperatingSystem -like '*Server*') {
-                    $infraGroup
-                    $stats.NewServer++
-                } else {
-                    $pawGroup
-                    $stats.NewPAW++
-                } #end If-Else
-
-                if ($PSCmdlet.ShouldProcess($item.SamAccountName, "Add to $($targetGroup.Name)")) {
-
-                    Add-ADGroupMember -Identity $targetGroup -Members $item -ErrorAction Stop
-
-                    Write-Verbose -Message ('
-                        Added {0}
-                        to {1}' -f
-                        $item.SamAccountName, $targetGroup.Name
-                    )
-
-                } #end If
+            [int]$TotalObjectsFound = $AllPrivComputers.Count
+            if ($TotalObjectsFound -eq 0) {
+                Write-Verbose -Message ('No computers found in the search root: {0}.' -f $SearchRootDN)
+                return
             } #end If
 
-        } #end Foreach
+            # Iterate all found items
+            Foreach ($item in $AllPrivComputers) {
+                $i++
 
+                $error.Clear()
+
+                # Display the progress bar
+                $parameters = @{
+                    Activity        = 'Checking computers within Admin Area'
+                    Status          = "Working on item No. $i from $TotalObjectsFound"
+                    PercentComplete = ($i / $TotalObjectsFound * 100)
+                }
+                Write-Progress @parameters
+
+                # exclude all computers within Housekeeping
+                if ($item.DistinguishedName -notlike '*Housekeeping*') {
+                    try {
+                        $targetGroup = if ($item.OperatingSystem -like '*Server*') {
+                            $InfraGroupObj
+                            $stats.NewServer++
+                        } else {
+                            $PawGroupObj
+                            $stats.NewPAW++
+                        } #end If-Else
+
+                        if ($PSCmdlet.ShouldProcess($item.SamAccountName, "Add to $($targetGroup.Name)")) {
+                            Add-ADGroupMember -Identity $targetGroup -Members $item -ErrorAction Stop
+
+                            Write-Verbose -Message ('Added {0} to {1}' -f
+                                $item.SamAccountName, $targetGroup.Name)
+                        } #end If
+                    } catch {
+                        Write-Warning -Message ('Failed to process computer {0}: {1}' -f
+                            $item.SamAccountName, $_.Exception.Message)
+                    } #end Try-Catch
+                } #end If
+            } #end Foreach
+        } catch {
+            Write-Error -Message ('Error processing computers: {0}' -f $_.Exception.Message)
+        } #end Try-Catch
     } #end Process
 
     End {
-        $Constants.NL
-        Write-Verbose -Message 'Any semi-privileged and/or Privileged computer will be patched and managed by Tier0 services'
-        $Constants.NL
-        Write-Verbose -Message ('Servers found...: {0}' -f $stats.NewServer.Count)
-        Write-Verbose -Message ('PAWs found......: {0}' -f $stats.NewPAW.Count)
-        $Constants.NL
+        if ($null -ne $Constants -and $null -ne $Constants.NL) {
+            Write-Verbose -Message $Constants.NL
+        }
 
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'setting Infrastructure Servers / PAWs housekeeping.'
-        )
-        Write-Verbose -Message $txt
+        Write-Verbose -Message 'Any semi-privileged and/or Privileged computer will be patched and managed by Tier0 services'
+
+        if ($null -ne $Constants -and $null -ne $Constants.NL) {
+            Write-Verbose -Message $Constants.NL
+        }
+
+        Write-Verbose -Message ('Servers found...: {0}' -f $stats.NewServer)
+        Write-Verbose -Message ('PAWs found......: {0}' -f $stats.NewPAW)
+
+        if ($null -ne $Constants -and $null -ne $Constants.NL) {
+            Write-Verbose -Message $Constants.NL
+        }
+
+        # Display function footer if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.FooterHousekeeping) {
+
+            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                'setting Infrastructure Servers / PAWs housekeeping.'
+            )
+            Write-Verbose -Message $txt
+        } #end If
     } #end End
-}
+} #end Function Set-PrivilegedComputerHousekeeping

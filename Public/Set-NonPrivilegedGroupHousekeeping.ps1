@@ -17,28 +17,49 @@
         .EXAMPLE
             Set-NonPrivilegedGroupHousekeeping "OU=Users,OU=Admin,DC=EguibarIT,DC=local" "OU=Admin,DC=EguibarIT,DC=local"
 
+            Removes all non-privileged group memberships from admin users in the specified OU.
+
         .EXAMPLE
             Set-NonPrivilegedGroupHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local" -Tier0RootOuDN "OU=Admin,DC=EguibarIT,DC=local"
 
-        .NOTES
-            Used Functions:
-                Name                                   | Module
-                ---------------------------------------|--------------------------
-                Get-ADUser                             | ActiveDirectory
-                Remove-ADGroupMember                   | ActiveDirectory
-                Import-Module                          | Microsoft.PowerShell.Core
-                Write-Verbose                          | Microsoft.PowerShell.Utility
-                Write-Progress                         | Microsoft.PowerShell.Utility
-                Get-FunctionToDisplay                  | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
-                Test-IsValidDN                         | EguibarIT.DelegationPS & EguibarIT.HousekeepingPS
+            Removes all non-privileged group memberships from admin users using named parameters.
+
+        .INPUTS
+            None. You cannot pipe objects to Set-NonPrivilegedGroupHousekeeping.
+
+        .OUTPUTS
+            None. This function does not produce output.
 
         .NOTES
-            Version:         1.0
-            DateModified:    10/Nov/2017
-            LasModifiedBy:   Vicente Rodriguez Eguibar
-                vicente@eguibar.com
-                Eguibar Information Technology S.L.
-                http://www.eguibarit.com
+            Used Functions:
+                Name                                       ║ Module/Namespace
+                ═══════════════════════════════════════════╬══════════════════════════════
+                Get-ADUser                                 ║ ActiveDirectory
+                Remove-ADGroupMember                       ║ ActiveDirectory
+                Import-Module                              ║ Microsoft.PowerShell.Core
+                Write-Verbose                              ║ Microsoft.PowerShell.Utility
+                Write-Progress                             ║ Microsoft.PowerShell.Utility
+                Get-FunctionDisplay                        ║ EguibarIT.HousekeepingPS
+                Test-IsValidDN                             ║ EguibarIT.HousekeepingPS
+
+            Version:         1.1
+            DateModified:    11/May/2023
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                            vicente@eguibar.com
+                            Eguibar Information Technology S.L.
+                            http://www.eguibarit.com
+
+        .LINK
+            https://github.com/vreguibar/EguibarIT.HousekeepingPS
+
+        .COMPONENT
+            Active Directory
+
+        .ROLE
+            Administrators
+
+        .FUNCTIONALITY
+            Group Management, Security, Privilege Management
     #>
 
     [CmdletBinding(
@@ -96,7 +117,6 @@
             Write-Verbose -Message $txt
         } #end If
 
-
         ##############################
         # Module Import
 
@@ -152,10 +172,9 @@
                     )) {
 
                     # Remove the user from the non-privileged group.
-                    if ($PSCmdlet.ShouldProcess("$($adminUser.SamAccountName) in $group", 'Remove from group')) {
+                    if ($PSCmdlet.ShouldProcess("$($admin.SamAccountName) in $group", 'Remove from group')) {
 
                         try {
-
                             $Splat = @{
                                 Identity = $Group
                                 Members  = $admin.SamAccountName
@@ -163,27 +182,21 @@
                             }
                             Remove-ADGroupMember @Splat
 
-                            Write-Verbose -Message ('
-                                Semi-Privileged user {0}
-                                was removed from non-privileged group {1}' -f
-                                $admin.SamAccountName, $Group
-                            )
+                            Write-Verbose -Message ('Semi-Privileged user {0} was removed from non-privileged group {1}' -f
+                                $admin.SamAccountName, $Group)
 
                         } catch {
-                            Write-Error -Message ('
-                                Error removing {0}
-                                from group {1}: {2}' -f
-                                $admin.SamAccountName, $Group, $_
-                            )
+                            Write-Error -Message ('Error removing {0} from group {1}: {2}' -f
+                                $admin.SamAccountName, $Group, $_)
                         } #end Try-catch
 
-                    } #end If
+                    } #end If ShouldProcess
 
-                } #end If
+                } #end If not Admin/Builtin
 
-            } #end Foreach
+            } #end Foreach Group
 
-        } #end Foreach
+        } #end Foreach admin
 
     } #end Process
 
