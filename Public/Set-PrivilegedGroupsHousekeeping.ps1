@@ -75,6 +75,7 @@
         [String]
         $AdminGroupsDN,
 
+        #Param2
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
@@ -122,152 +123,104 @@
         }
 
         foreach ($sid in $wellKnownUserSids.Keys) {
-            try {
-                # For these SIDs, we always need to use the wildcard approach
-                $users = Get-ADUser -Filter * -Properties SID |
-                    Where-Object -FilterScript { $_.SID -like $sid }
+            # For these SIDs, we always need to use the wildcard approach
+            $users = Get-ADUser -Filter * | Where-Object -FilterScript { $_.SID -like $sid }
 
-                foreach ($item in $users) {
-                    If ($item.SamAccountName -notin $ExcludeList) {
-                        $ExcludeList.Add($item.SamAccountName) | Out-Null
-                        Write-Verbose -Message ('Added {0} to exclusion list (SID: {1})' -f $item.SamAccountName, $item.SID)
-                    } #end If
-                } #end ForEach
-            } catch {
-                Write-Warning -Message ('Error finding users with SID pattern {0}: {1}' -f $sid, $_.Exception.Message)
-            } #end Try-Catch
-        } #end ForEach
+            foreach ($item in $users) {
+                If ($item.SamAccountName -notin $ExcludeList) {
+                    $ExcludeList.Add($item.SamAccountName) | Out-Null
+                }
+            } # end foreach
+
+        } #end Foreach
 
         # Item Counter
         [int]$i = 0
 
+        # Total Objects Found
+        [int]$TotalObjectsFound = $AllPrivGroups.Count
+
         # Removed Users counter
         [int]$userRemovedCount = 0
+
     } #end Begin
 
     Process {
-        try {
-            # All objects from Source domain
-            Write-Verbose -Message ('Getting the list of ALL privileged groups in {0}.' -f $AdminGroupsDN)
-            $Splat = @{
-                Filter      = '*'
-                Properties  = 'SamAccountName'
-                SearchBase  = $AdminGroupsDN
-                ErrorAction = 'Stop'
+        # All objects from Source domain
+        Write-Verbose -Message 'Getting the list of ALL semi-privileged groups.'
+        $Splat = @{
+            Filter      = '*'
+            Properties  = 'SamAccountName'
+            SearchBase  = $PsBoundParameters['AdminGroupsDN']
+            ErrorAction = 'Stop'
+        }
+        $AllPrivGroups = Get-ADGroup @Splat
+
+        $TotalObjectsFound = $AllPrivGroups.Count
+        [int]$userRemovedCount = 0
+
+        Write-Verbose -Message ('Iterate through each item returned. Total found: {0}' -f $TotalObjectsFound)
+
+        # Iterate all found groups
+        Foreach ($group in $AllPrivGroups) {
+            $i ++
+
+            # Display the progress bar
+            $parameters = @{
+                Activity        = 'Checking group membership'
+                Status          = "Working on item No. $i from $TotalObjectsFound"
+                PercentComplete = ($i / $TotalObjectsFound * 100)
             }
-            $AllPrivGroups = Get-ADGroup @Splat
+            Write-Progress @parameters
 
-            $TotalObjectsFound = $AllPrivGroups.Count
-            Write-Verbose -Message ('Found {0} groups to process.' -f $TotalObjectsFound)
+            # Exclude "Domain Users" group
+            If (-Not ($group.SID.value -like '*-513')) {
 
-            # Iterate all found groups
-            foreach ($group in $AllPrivGroups) {
-                $i++
-
-                # Display the progress bar
-                $parameters = @{
-                    Activity        = 'Checking group membership'
-                    Status          = "Working on group: $($group.Name) ($i of $TotalObjectsFound)"
-                    PercentComplete = ($i / $TotalObjectsFound * 100)
+                # Get members of current group
+                $Splat = @{
+                    Identity    = $group
+                    ErrorAction = 'Continue'
                 }
-                Write-Progress @parameters
+                $groupMembers = Get-ADGroupMember @Splat | Where-Object { $_.objectClass -eq 'user' }
 
-                # Exclude "Domain Users" group (SID ending with -513)
-                if (-not ($group.SID.Value -like '*-513')) {
-                    try {
-                        # Get members of current group
-                        $Splat = @{
-                            Identity    = $group
-                            ErrorAction = 'Stop'
-                        }
-                        $groupMembers = Get-ADGroupMember @Splat |
-                            Where-Object { $_.objectClass -eq 'user' }
+                # iterate group members
+                foreach ($member in $groupMembers) {
 
-                        if ($groupMembers.Count -eq 0) {
-                            Write-Verbose -Message ('Group {0} has no user members.' -f $group.SamAccountName)
-                            continue
-                        }
+                    if ($member.SamAccountName -notmatch '_T[0-2]$' -and $ExcludeList -notcontains $member.SamAccountName) {
 
-                        # Iterate group members
-                        foreach ($member in $groupMembers) {
-                            try {
-                                # Get full user object to check EmployeeType attribute
-                                $user = Get-ADUser -Identity $member -Properties EmployeeType -ErrorAction Stop
+                        if ($PSCmdlet.ShouldProcess("$($member.SamAccountName) in $($group.SamAccountName)", 'Remove unauthorized member')) {
 
-                                $isAuthorized = $false
+                            Remove-ADGroupMember -Identity $group -Members $member -Confirm:$false -ErrorAction Stop
 
-                                # Check if user matches naming convention (_T0, _T1, _T2)
-                                if ($user.SamAccountName -match '_T[0-2]$') {
-                                    $isAuthorized = $true
-                                }
+                            Write-Verbose -Message ('
+                                Removed unauthorized user {0}
+                                from group {1}' -f
+                                $member.SamAccountName, $group.SamAccountName
+                            )
 
-                                # Check if user has proper EmployeeType attribute
-                                if (-not $isAuthorized -and
-                                    $null -ne $user.EmployeeType -and
-                                    $user.EmployeeType -match '^T[0-2]$') {
-                                    $isAuthorized = $true
-                                }
+                            $userRemovedCount++
+                        } #end If ShouldProcess
+                    } #end If
 
-                                # Check if user is in exclusion list
-                                if (-not $isAuthorized -and $ExcludeList -contains $user.SamAccountName) {
-                                    $isAuthorized = $true
-                                }
+                } #end If "Domain Users"
+            } #end ForEach
+        } #end ForEach
 
-                                # Remove unauthorized users
-                                if (-not $isAuthorized) {
-                                    if ($PSCmdlet.ShouldProcess(
-                                            "User $($user.SamAccountName) from group $($group.SamAccountName)",
-                                            'Remove unauthorized member')) {
-
-                                        $Splat = @{
-                                            Identity    = $group
-                                            Members     = $user
-                                            Confirm     = $false
-                                            ErrorAction = 'Stop'
-                                        }
-                                        Remove-ADGroupMember @Splat
-
-                                        Write-Verbose -Message ('Removed unauthorized user {0} from group {1}' -f
-                                            $user.SamAccountName, $group.SamAccountName)
-
-                                        $userRemovedCount++
-                                    } #end If ShouldProcess
-                                } #end If not authorized
-                            } catch {
-                                Write-Warning -Message ('Error processing user {0}: {1}' -f $member.SamAccountName, $_.Exception.Message)
-                            } #end Try-Catch
-                        } #end ForEach member
-                    } catch {
-                        Write-Warning -Message ('Error processing group {0}: {1}' -f $group.SamAccountName, $_.Exception.Message)
-                    } #end Try-Catch
-                } else {
-                    Write-Verbose -Message ('Skipping Domain Users group: {0}' -f $group.SamAccountName)
-                } #end If not Domain Users
-            } #end ForEach group
-        } catch {
-            Write-Error -Message ('Error retrieving groups: {0}' -f $_.Exception.Message)
-        } #end Try-Catch
     } #end Process
 
     End {
-        Write-Progress -Activity 'Checking group membership' -Completed
+        $Constants.NL
+        Write-Verbose ('
+            A semi-privileged and/or Privileged group can ONLY contain semi-privileged and/or Privileged accounts.
+            Any userID which does not complies with this statement, will automatically be removed from the group.
 
-        # Display results
-        Write-Verbose -Message @"
-A privileged group can ONLY contain privileged accounts.
-Any user which does not comply with this requirement will automatically be removed from the group.
+            {0} users were removed from Privileged/Semi-Privileged groups.' -f
+            $userRemovedCount
+        )
 
-$userRemovedCount users were removed from Privileged/Semi-Privileged groups.
-"@
-
-        # Display function footer if variables exist
-        if ($null -ne $Variables -and
-            $null -ne $Variables.FooterHousekeeping) {
-
-            $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-                'processing privileged group housekeeping.'
-            )
-            Write-Verbose -Message $txt
-        } #end If
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+            'setting semi-privileged and/or Privileged group housekeeping.'
+        )
+        Write-Verbose -Message $txt
     } #end End
 } #end function Set-PrivilegedGroupsHousekeeping

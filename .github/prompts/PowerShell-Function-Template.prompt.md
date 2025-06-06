@@ -1,223 +1,250 @@
-﻿# PowerShell Function Template
+﻿---
+mode: 'agent'
+tools: ['githubRepo', 'codebase', 'PSScriptAnalyzer', 'Pester', 'PlatyPS']
+description: 'PowerShell Function Template'
+---
 
-Generate a PowerShell function that follows our coding standards and best practices. This function will be part of [EguibarIT.HousekeepingPS] module.
+# PowerShell Function Template Prompt
 
-## Context
+Generate a PowerShell function that follows our coding standards and best practices for the `EguibarIT.HousekeepingPS` module.
+
+## Table of Contents
+
+1. Context
+2. Function Requirements
+3. Function Structure
+4. Performance Requirements
+5. Security Requirements
+6. Testing Requirements
+
+## 1. Context
 
 This template is for developing functions in a Windows Server environment (2019-2025) using PowerShell 7+. Functions must:
 
-- Follow the Active Directory tiering model and delegation model
-- Be secure, idempotent, and scalable (100k+ objects)
-- Support ShouldProcess, comment-based help, Pester testing
-- Be optimized for large-scale AD/Windows environments (100,000+ objects)
+* Follow the Active Directory tiering model and delegation model.
+* Be secure, idempotent, and scalable (100k+ objects).
+* Support `ShouldProcess`, comment-based help, and Pester testing.
+* Be optimized for large-scale AD/Windows environments (100,000+ objects).
 
-## Function Requirements
+## 2. Function Requirements
 
-- Function Name: {{functionName}}
-- Purpose: {{purpose}}
-- Target Environment: Active Directory/Windows Server 2019-2022-2025/PowerShell 7
-- Required Modules: {{modules}}
+* `{{functionName}}`: The name of the function using approved verb-noun format (e.g., `Get-ADUserProperty`).
+* `{{purpose}}`: One-line summary of function's goal.
+* `{{commonParameters}}`: Specify if `Confirm`, `WhatIf`, `Verbose`, `Debug`, `ErrorAction`, `ErrorVariable`, `WarningAction`, `WarningVariable`, `OutBuffer`, `OutVariable` parameters should be included (e.g., "Confirm,WhatIf").
+* `Target Environment`: Active Directory/Windows Server 2019-2022-2025/PowerShell 7.
+* `{{modules}}`: List of required modules or dependencies (e.g., "ActiveDirectory, Microsoft.Graph.Users").
+* `{{inputType}}`: Type of input the function accepts (e.g., `String`, `PSCustomObject`, etc.).
+* `{{outputType}}`: Type of output the function returns (e.g., `PSCustomObject`, `String`, etc.).
+* `{{functionality}}`: Brief description of the core functionality, including specific AD operations or system interactions.
+* `{{parameters}}`: Details for specific parameters beyond common ones, including:
+  * `name`: Parameter name (PascalCase).
+  * `type`: Data type (e.g., `[string]`, `[int]`, `[System.Management.Automation.PSCredential]`).
+  * `mandatory`: `$true` or `$false`.
+  * `position`: Integer for positional parameters.
+  * `pipeline`: `ValueFromPipeline` or `ValueFromPipelineByPropertyName`.
+  * `description`: Purpose of the parameter.
+  * `validation`: Any `Validate*` attributes (e.g., `ValidateNotNullOrEmpty`, `ValidateSet('Value1', 'Value2')`).
+  * `default`: Default value if not mandatory.
+* `{{examples}}`: One or more example usage scenarios.
+  * `code`: PowerShell code snippet for the example.
+  * `description`: Explanation of what the example does.
+* `{{notes}}`: Any additional notes for the function (e.g., used cmdlets and their modules).
 
-## Function Structure
+## 3. Function Structure
 
 ### Comment-Based Help
 
 ```powershell
-<#
-    .SYNOPSIS
-        Brief description of function purpose.
+    <#
+        .SYNOPSIS
+            Brief description of function purpose.
 
-    .DESCRIPTION
-        Detailed description of function functionality.
+        .DESCRIPTION
+            Detailed description of function functionality.
 
-    .PARAMETER ParameterName
-        Description of parameter purpose, expected values, and behavior.
+        .PARAMETER ParameterName
+            Description of parameter purpose, expected values, and behavior.
 
-    .EXAMPLE
-        Example-Function -Parameter1 'Value' -Parameter2 'Value'
-        Description of what this example does.
+        .EXAMPLE
+            Example-Function -Parameter1 'Value' -Parameter2 'Value'
+            Description of what this example does.
 
-    .EXAMPLE
-        'Value' | Example-Function -Parameter2 'Value'
-        Description of what this pipeline example does.
+        .EXAMPLE
+            'Value' | Example-Function
+            Description of pipeline input example.
 
-    .INPUTS
-        [InputType] - Description of input object(s) that can be piped into the function.
+        .INPUTS
+            [System.String]
+            You can pipe a string value to the ParameterName parameter.
 
-    .OUTPUTS
-        [OutputType] - Description of returned object(s).
+        .OUTPUTS
+            [PSCustomObject]
+            Returns a custom object with processed data.
 
-    .NOTES
-        Version:         1.0
-        DateModified:    dd/MMM/yyyy
-        LastModifiedBy:  Vicente Rodriguez Eguibar
-                        vicente@eguibar.com
+        .NOTES
+            Used Functions:
+                Name                             ║ Module/Namespace
+                ═════════════════════════════════╬══════════════════════════════
+                [Cmdlet name]                    ║ [Module/Namespace]
+
+        .NOTES
+            Version:         1.0
+            DateModified:    dd/MMM/yyyy
+            LastModifiedBy:  Vicente Rodriguez Eguibar
+                        vicente@eguibarit.com
                         Eguibar IT
                         http://www.eguibarit.com
 
-        Used Functions:
-            Name                             ║ Module/Namespace
-            ═════════════════════════════════╬══════════════════════════════
-            [Cmdlet name]                    ║ [Module/Namespace]
+        .LINK
+            [https://docs.microsoft.com/en-us/powershell/module/activedirectory/get-aduser](https://docs.microsoft.com/en-us/powershell/module/activedirectory/get-aduser)
 
-    .LINK
-        https://github.com/vreguibar/EguibarIT.HousekeepingPS/blob/main/README.md#function-name
+        .COMPONENT
+            User Management
 
-    .COMPONENT
-        [Component] - Description of the component this function belongs to.
+        .ROLE
+            Tier 2 Administrator
 
-    .ROLE
-        [Role] - Description of the role this function plays in the module.
-
-    .FUNCTIONALITY
-        [Functionality] - Description of the functionality this function provides.
-#>
+        .FUNCTIONALITY
+            Retrieves, modifies, or creates Active Directory user objects.
+    #>
 ```
 
-### CmdletBinding and Parameters
-
-    - Use `CmdletBinding` with appropriate `SupportsShouldProcess` setting
-    - Analyze and define the impact of the function (Low, Medium, High)
-    - Include default parameter set name IF MORE THAN 1 IS USED.
-    - OutputType declaration
-    - Include Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, HelpMessage and Position attributes
+### Basic Function Skeleton
 
 ```powershell
-    [CmdletBinding(
-        SupportsShouldProcess = $true,
-        ConfirmImpact = 'Medium',
-        DefaultParameterSetName = 'DefaultSet'
-    )]
-    [OutputType([PSCustomObject])]
-    param (
-        [Parameter(
-            Mandatory = $true,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            Position = 0,
-            HelpMessage = 'Parameter description'
+    function {{functionName}} {
+
+        [CmdletBinding(
+            SupportsShouldProcess = $true,
+            ConfirmImpact = 'Medium'
         )]
-        [ValidateNotNullOrEmpty()]
-        [Alias('DN', 'DistinguishedName')]
-        [String]$Identity,
+        [OutputType([PSCustomObject])]
 
-        [Parameter(Mandatory = $false)]
-        [Switch]$PassThru
-    )
+        param(
+
+            [Parameter(
+                Mandatory = $true,
+                ValueFromPipeline = $true,
+                ValueFromPipelineByPropertyName = $true,
+                Position = 0,
+                HelpMessage = 'Parameter description'
+            )]
+            [ValidateNotNullOrEmpty()]
+            [ValidateScript(
+                { Test-IsValidDN -ObjectDN $_ },
+                ErrorMessage = 'DistinguishedName provided is not valid! Please Check.'
+            )]
+            [Alias('DN', 'DistinguishedName')]
+            [String]
+            $Identity,
+
+            [Parameter(Mandatory = $false)]
+            [Switch]
+            $PassThru
+
+        )
+
+        Begin {
+            Set-StrictMode -Version Latest
+
+            # Display function header if variables exist
+            if ($null -ne $Variables -and
+                $null -ne $Variables.HeaderHousekeeping) {
+
+                $txt = ($Variables.HeaderHousekeeping -f
+                    (Get-Date).ToString('dd/MMM/yyyy'),
+                    $MyInvocation.Mycommand,
+                    (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+                )
+                Write-Verbose -Message $txt
+            } #end If
+
+            ##############################
+            # Module imports
+
+            Import-MyModule -Name ActiveDirectory -Force -Verbose:$false
+
+            ##############################
+            # Variables Definition
+
+            [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+            [hashtable]$SplatProgress = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
+
+        } #end Begin
+
+        Process {
+
+            # Process logic here
+            # Consider delegating logic to private/helper functions to improve readability/testability.
+            # New private/helper must be relevant and useful; only use them when they encapsulate a specific functionality that can be reused or tested independently.
+
+            ForEach ($Item in $Identity) {
+
+                $SplatProgress = @{
+                    Activity        = 'Processing items'
+                    Status          = ('Processing {0}' -f $Item)
+                    PercentComplete = (($i++ / $Identity.Count) * 100)
+                }
+                Write-Progress @SplatProgress
+
+                try {
+
+                    if ($PSCmdlet.ShouldProcess($Item, 'Operation description')) {
+
+                        # Main functionality
+
+                    } #end if
+
+                } catch [System.Exception] {
+
+                    Write-Error -Message ('Error occurred: {0}' -f $_.Exception.Message)
+
+                } #end try-catch
+
+            } #end ForEach
+        } #end Process
+
+        End {
+            Write-Progress -Activity 'Processing objects' -Completed
+
+            # Display function footer if variables exist
+            if ($null -ne $Variables -and
+                $null -ne $Variables.FooterHousekeeping) {
+
+                $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
+                    'processing XXXXX XXXXX & XXXXX.'
+                )
+                Write-Verbose -Message $txt
+            } #end If
+        } #end End
+    } #end function {{functionName}}
 ```
 
-### Block Structure
+## 4. Performance Requirements
 
-```powershell
-Begin {
-    Set-StrictMode -Version Latest
+* Support batch processing of multiple objects simultaneously.
+* Minimize redundant queries to AD (cache results when appropriate).
+* Use efficient filtering with LDAP filters at source rather than client-side filtering.
+* Implement appropriate pagination for large result sets.
+* Follow the single-responsibility principle.
+* Use splatting for better readability and maintainability.
+* Use `Write-Progress` for long-running operations to provide user feedback.
 
-    # Display function header if variables exist
-    if ($null -ne $Variables -and
-        $null -ne $Variables.HeaderHousekeeping) {
+## 5. Security Requirements
 
-        $txt = ($Variables.HeaderHousekeeping -f
-                (Get-Date).ToShortDateString(),
-            $MyInvocation.Mycommand,
-                (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
-        )
-        Write-Verbose -Message $txt
-    } #end If
+* Never store credentials or sensitive data in plain text.
+* Use SecureString for password parameters.
+* Implement the least privilege principle.
+* Sanitize all user input before using it in queries.
+* Avoid using Invoke-Expression with user-supplied input.
+* Use credential parameters with proper validation.
+* Use [System.Management.Automation.PSCredential] for any user/pass input.
+* Consider Get-Credential guidance when used interactively.
 
-    ##############################
-    # Module imports
-    Import-Module -Name ActiveDirectory -Force
+## 6. Testing Requirements
 
-    ##############################
-    # Variables Definition
-
-    [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
-    [hashtable]$SplatProgress = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
-
-} #end Begin
-
-Process {
-    # Process logic here
-    ForEach ($Item in $Identity) {
-
-         $SplatProgress = @{
-            Activity        = 'Processing items'
-            Status          = ('Processing {0}' -f $Item)
-            PercentComplete = (($i++ / $Identity.Count) * 100)
-        }
-        Write-Progress @SplatProgress
-
-        try {
-            if ($PSCmdlet.ShouldProcess($Item, 'Operation description')) {
-                # Main functionality
-            }
-        } catch [System.Exception] {
-            Write-Error -Message ('Error occurred: {0}' -f $_.Exception.Message)
-        }
-    } #end ForEach
-} #end Process
-
-End {
-    Write-Progress -Activity 'Processing objects' -Completed
-
-    # Display function footer if variables exist
-    if ($null -ne $Variables -and
-        $null -ne $Variables.FooterHousekeeping) {
-
-        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-            'processing XXXXX XXXXX & XXXXX.'
-        )
-        Write-Verbose -Message $txt
-    } #end If
-} #end End
-```
-
-## Coding Standards
-
-1. **Naming Conventions**
-   - Use PascalCase for all variables, functions, and parameters
-   - Use approved PowerShell verbs
-   - Use singular nouns for function names
-
-2. **String Formatting**
-   - Use single quotes for strings without variables
-   - Use `-f` operator for string formatting: `'Text {0}' -f $Variable`
-
-3. **Error Handling**
-   - Use try/catch blocks with specific exception types when possible
-   - Provide meaningful error messages
-   - Use appropriate Write-* cmdlets based on severity
-
-4. **Parameter Design**
-   - Include proper validation attributes
-   - Add HelpMessage for all parameters
-   - Add Position for important parameters
-   - Implement pipeline support where appropriate
-   - Use parameter sets for complex functions
-
-## Performance Requirements
-
-- Support batch processing of multiple objects simultaneously
-- Minimize redundant queries to AD (cache results when appropriate)
-- Use efficient filtering with LDAP filters at source rather than client-side filtering
-- Implement appropriate pagination for large result sets
-- Follow the single-responsibility principle
-
-## Security Requirements
-
-- Never store credentials or sensitive data in plain text
-- Use SecureString for password parameters
-- Implement the least privilege principle
-- Sanitize all user input before using it in queries
-- Avoid using Invoke-Expression with user-supplied input
-- Use credential parameters with proper validation
-
-## Testing Requirements
-
-- Include Pester test files with naming convention [FunctionName].Tests.ps1
-- Cover parameter validation, functionality, error handling, edge cases
-- Mock external dependencies for independent testing
-- Test pipeline input scenarios
-- Test ShouldProcess functionality where implemented
-
-> For detailed testing guidance and a complete Pester test template, refer to the dedicated [test-template.prompt.md](./test-template.prompt.md) file.
+* Include Pester test files with naming convention [FunctionName].Tests.ps1.
+* Cover parameter validation, functionality, error handling, edge cases.
+* Mock external dependencies for independent testing.
+* Test pipeline input scenarios.
+* Test ShouldProcess functionality where implemented.

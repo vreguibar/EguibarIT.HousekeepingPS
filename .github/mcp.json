@@ -1,245 +1,267 @@
 ﻿{
-    "version": 1,
-    "name": "PowerShell Function Development",
-    "description": "Configuration for PowerShell function development with focus on Active Directory and Windows Server management",
+    "version": "1.0",
+    "name": "PowerShell Function & Module Development Guide",
+    "description": "Comprehensive configuration for GitHub Copilot assisting PowerShell function/module development, focusing on Active Directory and enterprise best practices.",
+
+    // --- Relevance Scoring Quick Reference ---
+    "_relevanceScoringGuide": "Higher value = MORE emphasis/priority by Copilot. Ranges: recentChanges (0.1-2.5), similarFunctions (0.5-2.0), relatedClasses (0.5-1.5), testFiles (0.5-3.0+).",
+    // -----------------------------------------
+
     "instructions": [
-        "You are assisting with PowerShell function development for Active Directory and Windows Server management.",
-        "Follow the coding standards and structure specified in the Code-Style.md file.",
-        "Ensure all functions include complete comment-based help with Synopsis, Description, Parameters, Examples, Notes, and Links.",
-        "Functions should implement Begin/Process/End blocks with proper error handling.",
-        "Use single quotes for strings and string formatting with the -f operator.",
-        "Implement proper parameter validation and pipeline support.",
-        "Add appropriate verbose, debug, warning and error messages.",
+        "You are an expert PowerShell module developer for Active Directory and Windows Server environments.",
+        "Strictly adhere to the coding standards defined in 'Code-Style.md' and 'powershell-best-practices.md'.",
+        "Always generate code with complete comment-based help (SYNOPSIS, DESCRIPTION, PARAMETER, EXAMPLE, INPUTS, OUTPUTS, NOTES). Include LINK, COMPONENT, ROLE, and FUNCTIONALITY sections where applicable.",
+        "Implement Begin/Process/End blocks for all functions, ensuring robust error handling using try-catch blocks and Write-Error -ErrorAction Stop.",
+        "Prioritize idempotent and scalable solutions, especially for Active Directory operations with large datasets (100,000+ objects).",
+        "Ensure all state-changing operations use `SupportsShouldProcess` and include `Confirm` and `WhatIf` parameters.",
+        "Use single quotes for all strings and leverage the -f operator for string formatting.",
+        "Implement proper parameter validation using `[Validate*()]` attributes and ensure full pipeline support (`ValueFromPipeline`, `ValueFromPipelineByPropertyName`).",
+        "Use `Write-Verbose` for general operation logging and `Write-Debug` for debugging information.",
+        "Add appropriate verbose, debug, warning and error messages where it corresponds.",
         "Follow the Active Directory tiering model and security best practices.",
         "Optimize code for large-scale environments (100,000+ objects).",
-        "Include ShouldProcess functionality for state-changing operations.",
         "Document all cmdlets used in the Notes section with their corresponding modules.",
-        "Implement idempotent behavior where applicable."
+        "Implement idempotent behavior where applicable.",
+        "Reference and apply patterns/snippets from 'ad-operations.json' and 'pester-testing.json' where applicable.",
+        "When creating new functions, strictly follow the structure and requirements from 'PowerShell-Function-Template.prompt.md'.",
+        "When creating tests, use the structure and conventions from 'test-template.prompt.md'."
     ],
     "context": [
         {
             "source": "file",
-            "pattern": "*.ps1",
+            // Include common PowerShell script, module, and manifest files.
+            "pattern": "{**/*.ps1, **/*.psm1, **/*.psd1, **/*.cs}",
+            "maxDepth": 5,
+            "maxFiles": 100,
+            "relevanceScoring": {
+                "enabled": true,
+                "recentChanges": 1.5,
+                "similarFunctions": 1.2,
+                "relatedClasses": 1.0,
+                "testFiles": 0.8
+            }
+        },
+        {
+            "source": "file",
+            // Consolidated list of all essential configuration/guidance files with new paths
+            "pattern": "{./.github/mcp.json, ./.github/copilot-instructions.md, ./.github/instructions/Code-Style.instructions.md, ./.github/instructions/Debugging-Guide.instructions.md, ./.github/instructions/Module-Development-Guide.instructions.md, ./.github/instructions/PowerShell-Best-Practices.instructions.md, ./.github/instructions/test.instructions.md, ./.github/patterns/ad-operations.json, ./.github/patterns/pester-testing.json, ./.github/patterns/copilot-enhanced-context.json, ./.github/prompts/PowerShell-Function-Template.prompt.md, ./.github/prompts/test-template.prompt.md, ./.github/references/AD-Operations-QuickRef.instructions.md, ./.github/references/copilot-advanced-patterns.instructions.md, ./.github/references/Copilot-Automation-Examples.instructions.md, ./.github/references/Security-Principal-Validation.instructions.md, ./.github/templates/*.ps1}",
+            "relevanceScoring": {
+                "enabled": true,
+                "recentChanges": 0.5,
+                "similarFunctions": 0.5,
+                "relatedClasses": 0.5,
+                "testFiles": 0.5
+            }
+        },
+        {
+            "source": "folder",
+            "pattern": "Modules/**",
             "maxDepth": 3,
-            "maxFiles": 20
-        },
-        {
-            "source": "file",
-            "path": "Code-Style.md"
-        },
-        {
-            "source": "file",
-            "path": "copilot-instructions.md"
+            "maxFiles": 100,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.0, "similarFunctions": 1.0 }
         },
         {
             "source": "folder",
-            "path": "./Private",
-            "importance": "high"
+            "pattern": "Classes/**",
+            "maxDepth": 3,
+            "maxFiles": 50,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.1, "similarFunctions": 1.1 }
         },
         {
             "source": "folder",
-            "path": "./Public",
-            "importance": "high"
+            "pattern": "Enums/**",
+            "maxDepth": 2,
+            "maxFiles": 20,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.2, "similarFunctions": 1.2 }
+        },
+        {
+            "source": "folder",
+            "pattern": "Private/**",
+            "maxDepth": 3,
+            "maxFiles": 50,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.4, "similarFunctions": 1.4 }
+        },
+        {
+            "source": "folder",
+            "pattern": "Public/**",
+            "maxDepth": 3,
+            "maxFiles": 100,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.5, "similarFunctions": 1.5 }
+        },
+        {
+            "source": "folder",
+            "pattern": "Tests/**",
+            "maxDepth": 2,
+            "maxFiles": 50,
+            "relevanceScoring": { "enabled": true, "recentChanges": 1.0, "testFiles": 0.8 }
+        },
+        {
+            "source": "folder",
+            "pattern": "Docs/**",
+            "maxDepth": 3,
+            "maxFiles": 50,
+            "relevanceScoring": { "enabled": true, "recentChanges": 0.5, "similarFunctions": 0.5 }
+        },
+        {
+            "source": "folder",
+            "pattern": "Example/**",
+            "maxDepth": 3,
+            "maxFiles": 50,
+            "relevanceScoring": { "enabled": true, "recentChanges": 0.5, "similarFunctions": 0.5 }
         },
         {
             "source": "git",
-            "pattern": "*.ps1",
-            "maxCommits": 10,
-            "description": "Recent PowerShell changes"
+            "pattern": "**",
+            "relevanceScoring": {
+                "enabled": true,
+                "recentChanges": 1.0
+            }
         }
     ],
+    "contextConfig": {
+        "maxCompletionTokens": 2048,
+        "maxContextFiles": 20,
+        "maxContextTokens": 8192,
+        "promptFiles": [
+            "./.github/prompts/PowerShell-Function-Template.prompt.md",
+            "./.github/prompts/test-template.prompt.md"
+        ]
+    },
     "lenses": [
         {
-            "name": "function",
-            "pattern": "function ([A-Za-z0-9-]+)",
-            "description": "PowerShell functions",
-            "importance": "high"
+            "name": "ad-specific-cmdlets",
+            "pattern": "(Get|Set|New|Remove|Move|Enable|Disable|Unlock)-AD(User|Computer|Group|Object|Domain|OrganizationalUnit|ServiceAccount|GroupPolicy|Site|Subnet|ReplicationPartner|Forest|Trust|OptionalFeature|FineGrainedPasswordPolicy|ClaimTransformPolicy|AuthenticationPolicy|ClaimType|ClientAccessRule|GlobalCatalog|CrossForestAccessRule)",
+            "description": "Active Directory specific cmdlets",
+            "importance": "high",
+            "triggers": ["ad-operation", "ad-cmdlet"]
         },
         {
-            "name": "parameter",
-            "pattern": "\\[Parameter\\(([^\\)]+)\\)\\]",
-            "description": "Function parameters",
-            "importance": "medium"
+            "name": "pester-test-syntax",
+            "pattern": "(Describe|Context|It|Should|Mock|BeforeEach|AfterEach|BeforeAll|AfterAll)",
+            "description": "Pester testing syntax",
+            "importance": "high",
+            "triggers": ["pester-test", "test-framework"]
         },
         {
-            "name": "error-handling",
-            "pattern": "try\\s*{[^}]*}\\s*catch\\s*{[^}]*}",
-            "description": "Error handling blocks",
-            "importance": "medium"
+            "name": "comment-based-help-structure",
+            "pattern": "<#\\s*\\.(SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|ROLE|FUNCTIONALITY)",
+            "description": "PowerShell comment-based help sections",
+            "importance": "medium",
+            "triggers": ["documentation", "help"]
         },
         {
-            "name": "ad-operations",
-            "pattern": "(Get-AD|Set-AD|New-AD|Remove-AD)[A-Za-z]+",
-            "description": "Active Directory operations",
-            "importance": "high"
+            "name": "error-handling-pattern",
+            "pattern": "try\\s*{[\\s\\S]*}\\s*catch\\s*{[\\s\\S]*}",
+            "description": "Standard PowerShell try-catch block for error handling",
+            "importance": "high",
+            "triggers": ["error-management", "exception-handling"]
         },
         {
-            "name": "ldap-filters",
-            "pattern": "-LDAPFilter\\s+['\"](.*?)['\"]",
-            "description": "LDAP filter expressions",
-            "importance": "high"
+            "name": "should-process-pattern",
+            "pattern": "\\$PSCmdlet\\.ShouldProcess\\(",
+            "description": "Implementation of ShouldProcess for cmdlet safety",
+            "importance": "high",
+            "triggers": ["safety", "confirm-whatif"]
         },
         {
-            "name": "shouldprocess",
-            "pattern": "if\\s*\\(\\$PSCmdlet\\.ShouldProcess\\(.*?\\)\\)",
-            "description": "ShouldProcess implementation",
-            "importance": "medium"
+            "name": "parameter-validation-attributes",
+            "pattern": "\\[Validate(NotNull|NotNullOrEmpty|Pattern|Set|Range|Script|Length|Count)\\]",
+            "description": "Common parameter validation attributes",
+            "importance": "high",
+            "triggers": ["parameter-validation", "input-validation"]
         },
         {
-            "name": "verbose-logging",
-            "pattern": "Write-(Verbose|Debug|Warning|Error)",
-            "description": "Logging statements",
-            "importance": "medium"
+            "name": "idempotent-check",
+            "pattern": "(if \\(-not \\(Test-SomethingExist\\)\\)|if \\(Get-Something |Should -BeNullOrEmpty\\))",
+            "description": "Patterns for ensuring idempotent operations",
+            "importance": "medium",
+            "triggers": ["idempotency", "state-check"]
+        },
+        {
+            "name": "secure-string-usage",
+            "pattern": "\\[System\\.Security\\.SecureString\\]",
+            "description": "Usage of SecureString for secure credential handling",
+            "importance": "high",
+            "triggers": ["security", "credentials"]
+        },
+        {
+            "name": "ldap-filter-syntax",
+            "pattern": "-LDAPFilter\\s+['\\\"]\\(.*\\)['\\\"]",
+            "description": "LDAP filter syntax in AD cmdlets",
+            "importance": "medium",
+            "triggers": ["ad-query", "filtering"]
+        },
+        {
+            "name": "function-complexity",
+            "pattern": "function\\s+([A-Za-z0-9-_]+)\\s*{[\\s\\S]{500,}",
+            "description": "Complex functions that may need refactoring (e.g., very long or nested logic)",
+            "importance": "medium",
+            "triggers": ["long-function", "complex-logic"]
+        },
+        {
+            "name": "securityRelevant",
+            "pattern": "(Get-Credential|ConvertFrom-SecureString|ConvertTo-SecureString|Invoke-Command -ComputerName|New-PSSession|Set-Acl|Get-Acl|Enable-PSRemoting|Disable-PSRemoting)",
+            "description": "Cmdlets and patterns related to security operations or sensitive data handling",
+            "importance": "high",
+            "triggers": ["security", "credentials", "access-control"]
+        }
+    ],
+    "template": "Create a PowerShell function named {{functionName}} that {{description}}. Adhere strictly to the organization's coding standards and structure defined in 'Code-Style.md'. Include proper comment-based help (SYNOPSIS, DESCRIPTION, PARAMETER, EXAMPLE, INPUTS, OUTPUTS, NOTES), comprehensive parameter validation, robust error handling, and verbose output. Target environment is Active Directory/Windows Server 2019+ with a focus on performance, security, and idempotency best practices for large-scale enterprise environments. Consider the patterns in 'ad-operations.json' for Active Directory interactions.",
+    "templateDescription": "PowerShell Function Generation Template",
+    "placeholders": [
+        {
+            "name": "functionName",
+            "description": "Name of the PowerShell function (Verb-Noun) (e.g., Get-ADUserProperty)"
+        },
+        {
+            "name": "description",
+            "description": "A concise summary of what the function does"
         }
     ],
     "prompts": [
         {
             "name": "New-Function",
-            "description": "Create a new PowerShell function following the standard template",
-            "template": "Create a PowerShell function named {{functionName}} that {{description}}. Follow the structure and standards from Code-Style.md with proper comment-based help, parameter validation, error handling, and verbose output. Target environment is Active Directory/Windows Server with a focus on performance and security best practices."
+            "template": "Please create a new PowerShell function named {{functionName}} that {{description}}. Ensure it follows the coding standards from 'Code-Style.md' and 'powershell-best-practices.md', includes full comment-based help, robust error handling, and proper parameter validation. Optimize for Active Directory operations and include `ShouldProcess` if it's a state-changing operation.",
+            "description": "Create a new PowerShell function following all standards.",
+            "placeholders": [
+                {
+                    "name": "functionName",
+                    "description": "The Verb-Noun name of the new function (e.g., 'Get-ADUserStatus')"
+                },
+                {
+                    "name": "description",
+                    "description": "A brief description of what the function should do"
+                }
+            ]
         },
         {
-            "name": "Add-ErrorHandling",
-            "description": "Add error handling to existing code",
-            "template": "Add comprehensive error handling to the following PowerShell code. Include try/catch blocks with specific exception types where appropriate, and add appropriate Write-Verbose, Write-Debug, Write-Warning, and Write-Error messages.\n\n```powershell\n{{selection}}\n```"
+            "name": "Generate-PesterTest",
+            "template": "Please generate Pester tests for the PowerShell function '{{functionName}}'. Use the 'test-template.prompt.md' for structure and conventions, including parameter validation, functionality, error handling, and `ShouldProcess` tests if applicable.",
+            "description": "Generate comprehensive Pester tests for a given function.",
+            "placeholders": [
+                {
+                    "name": "functionName",
+                    "description": "The name of the PowerShell function to test (e.g., 'Set-ADUserPassword')"
+                }
+            ]
         },
         {
-            "name": "Improve-Parameters",
-            "description": "Enhance parameter definitions with validation and pipeline support",
-            "template": "Improve the parameter definitions in the following PowerShell function to include proper validation attributes, help messages, pipeline support, and parameter sets if needed.\n\n```powershell\n{{selection}}\n```"
+            "name": "Explain-ADSecurity",
+            "template": "Explain Active Directory security best practices focusing on the tiering model and least privilege principle, referencing 'powershell-best-practices.md' and 'AD-Operations-QuickRef.md'.",
+            "description": "Get an explanation of AD security best practices.",
+            "placeholders": []
         },
         {
-            "name": "Add-PesterTests",
-            "description": "Generate Pester tests for a function",
-            "template": "Create Pester tests for the following PowerShell function. Include tests for parameter validation, expected functionality with various inputs, error handling paths, and edge cases.\n\n```powershell\n{{selection}}\n```"
-        },
-        {
-            "name": "Refactor-Function",
-            "description": "Refactor a function for improved performance",
-            "template": "Refactor this PowerShell function for better performance, particularly for large Active Directory environments with 100,000+ objects. Focus on optimizing LDAP queries, implementing pagination, and reducing unnecessary processing.\n\n```powershell\n{{selection}}\n```"
-        },
-        {
-            "name": "Document-Function",
-            "description": "Add comprehensive documentation to a function",
-            "template": "Add comprehensive documentation to this PowerShell function following our style guide. Include parameter descriptions, examples, notes with cmdlet/module usage table, and version information.\n\n```powershell\n{{selection}}\n```"
-        },
-        {
-            "name": "Test-ADSecurity",
-            "description": "Validate AD security best practices",
-            "template": "Review this Active Directory management function for security best practices. Check for proper credential handling, least privilege operations, and tiered access model compliance.\n\n```powershell\n{{selection}}\n```"
+            "name": "Refactor-Code",
+            "template": "Please refactor the following PowerShell code to adhere to the coding standards in 'Code-Style.md' and 'powershell-best-practices.md', focusing on error handling, parameter validation, and readability:\n```powershell\n{{codeToRefactor}}\n```",
+            "description": "Refactor a given PowerShell code snippet.",
+            "placeholders": [
+                {
+                    "name": "codeToRefactor",
+                    "description": "The PowerShell code snippet to refactor."
+                }
+            ]
         }
     ],
-    "specs": [
-        {
-            "name": "PowerShell Function Development",
-            "description": "Guidelines for creating PowerShell functions following best practices",
-            "include": [
-                "**/*.ps1",
-                "**/*.psm1",
-                "**/*.psd1"
-            ],
-            "contextConfig": {
-                "promptFiles": [
-                    ".github/prompts/powershell-function.prompt.md"
-                ]
-            },
-            "settings": {
-                "guidelines": {
-                    "codeStyle": {
-                        "usePascalCaseForVariables": true,
-                        "useStronglyTypedVariables": true,
-                        "maxLineLength": 120,
-                        "useSingleQuotesForStrings": true,
-                        "useFormattedStrings": true,
-                        "includeBlockComments": true
-                    },
-                    "functionStructure": {
-                        "includeCommentBasedHelp": true,
-                        "includeCmdletBinding": true,
-                        "includeOutputType": true,
-                        "useParameterValidation": true,
-                        "includeBeginProcessEndBlocks": true,
-                        "includeErrorHandling": true,
-                        "includeStrictMode": true
-                    },
-                    "securityPractices": {
-                        "avoidHardcodedCredentials": true,
-                        "sanitizeUserInput": true,
-                        "useSecureStringForSensitiveData": true,
-                        "implementLeastPrivilegePrinciple": true
-                    },
-                    "performance": {
-                        "supportBatchProcessing": true,
-                        "optimizeForLargeEnvironments": true,
-                        "minimizeRedundantQueries": true,
-                        "useEfficientFiltering": true,
-                        "implementPagination": true
-                    },
-                    "testing": {
-                        "includePesterTests": true,
-                        "mockExternalDependencies": true,
-                        "testParameterValidation": true,
-                        "testErrorHandling": true,
-                        "testEdgeCases": true
-                    }
-                }
-            }
-        },
-        {
-            "name": "EguibarIT.HousekeepingPS",
-            "description": "PowerShell module for housekeeping tasks in Active Directory and related systems",
-            "include": [
-                "**/*.ps1",
-                "**/*.psm1",
-                "**/*.psd1"
-            ],
-            "contextConfig": {
-                "promptFiles": [
-                    ".github/prompts/function-template.prompt.md",
-                    ".github/prompts/test-template.prompt.md"
-                ]
-            },
-            "settings": {
-                "guidelines": {
-                    "codeStyle": {
-                        "usePascalCaseForVariables": true,
-                        "useStronglyTypedVariables": true,
-                        "maxLineLength": 120,
-                        "useSingleQuotesForStrings": true,
-                        "useFormattedStrings": true,
-                        "includeBlockComments": true
-                    },
-                    "functionStructure": {
-                        "includeCommentBasedHelp": true,
-                        "includeCmdletBinding": true,
-                        "includeOutputType": true,
-                        "useParameterValidation": true,
-                        "includeBeginProcessEndBlocks": true,
-                        "includeErrorHandling": true,
-                        "includeStrictMode": true
-                    },
-                    "securityPractices": {
-                        "avoidHardcodedCredentials": true,
-                        "sanitizeUserInput": true,
-                        "useSecureStringForSensitiveData": true,
-                        "implementLeastPrivilegePrinciple": true
-                    },
-                    "performance": {
-                        "supportBatchProcessing": true,
-                        "optimizeForLargeEnvironments": true,
-                        "minimizeRedundantQueries": true,
-                        "useEfficientFiltering": true,
-                        "implementPagination": true
-                    },
-                    "testing": {
-                        "includePesterTests": true,
-                        "mockExternalDependencies": true,
-                        "testParameterValidation": true,
-                        "testErrorHandling": true,
-                        "testEdgeCases": true
-                    }
-                }
-            }
-        }
-    ]
+    "tags": ["powershell", "module", "ad", "pester", "automation", "security", "performance"]
 }

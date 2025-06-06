@@ -37,8 +37,8 @@
                 Get-FunctionDisplay                       ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.1
-            DateModified:    7/Apr/2025
+            Version:         1.2
+            DateModified:    10/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
                             vicente@eguibar.com
                             Eguibar IT
@@ -96,7 +96,7 @@
             @{
                 Path        = Join-Path -Path $env:SystemDrive -ChildPath '*.dmp'
                 Description = 'System dump files'
-                Recurse     = $true
+                Recurse     = $false
             },
             @{
                 Path        = Join-Path -Path $env:ALLUSERSPROFILE -ChildPath 'Microsoft\Windows\WER'
@@ -104,21 +104,73 @@
                 Recurse     = $true
             }
         )
-
     } #end Begin
 
     Process {
-
         foreach ($location in $cleanupPaths) {
             Write-Verbose -Message ('Processing {0}' -f $location.Description)
 
             try {
-                # Get files to be removed and calculate total size
-                $files = Get-ChildItem -Path $location.Path -Recurse:$location.Recurse -File -ErrorAction Stop
+                # Get files to be removed with error handling for access denied
+                $files = @()
 
-                if ($files) {
-                    $totalSize = ($files | Measure-Object -Property Length -Sum).Sum
-                    $fileCount = $files.Count
+                # Handle wildcards vs folders differently
+                if ($location.Path -match '\*') {
+                    # Path with wildcards - use direct Get-ChildItem
+                    $files = @(Get-ChildItem -Path $location.Path -File -ErrorAction SilentlyContinue)
+                } else {
+                    # Directory path - handle recursion and access denied errors
+                    try {
+                        # Test path first
+                        if (Test-Path -Path $location.Path -PathType Container) {
+                            # Use Get-ChildItem with ErrorVariable to capture access denied errors
+                            $childItems = @()
+
+                            # First level
+                            $firstLevel = @(Get-ChildItem -Path $location.Path -File -ErrorAction SilentlyContinue -ErrorVariable accessErrors)
+                            if ($firstLevel.Count -gt 0) {
+                                $childItems += $firstLevel
+                            }
+
+                            # Handle recursion if needed
+                            if ($location.Recurse) {
+                                try {
+                                    # Get subdirectories that we can access
+                                    $subDirs = @(Get-ChildItem -Path $location.Path -Directory -ErrorAction SilentlyContinue)
+
+                                    foreach ($dir in $subDirs) {
+                                        try {
+                                            $dirFiles = @(Get-ChildItem -Path $dir.FullName -File -Recurse -ErrorAction SilentlyContinue -ErrorVariable +accessErrors)
+                                            if ($dirFiles.Count -gt 0) {
+                                                $childItems += $dirFiles
+                                            }
+                                        } catch {
+                                            # Log access errors but continue with other directories
+                                            Write-Debug -Message ('Access denied to {0}: {1}' -f $dir.FullName, $_.Exception.Message)
+                                        }
+                                    }
+                                } catch {
+                                    # Handle overall recursion errors
+                                    Write-Debug -Message ('Error during recursive search: {0}' -f $_.Exception.Message)
+                                }
+                            }
+
+                            $files = $childItems
+                        }
+                    } catch {
+                        # Log path access errors
+                        Write-Debug -Message ('Cannot access path {0}: {1}' -f $location.Path, $_.Exception.Message)
+                    }
+                }
+
+                # Process files if any were found
+                $fileCount = ($files | Measure-Object).Count
+
+                if ($fileCount -gt 0) {
+                    $totalSize = 0
+                    foreach ($file in $files) {
+                        $totalSize += $file.Length
+                    }
 
                     Write-Debug -Message ('Found {0} files totaling {1:N2} MB' -f
                         $fileCount, ($totalSize / 1MB))
@@ -131,23 +183,18 @@
                         $message = ('Removing {0}' -f $file.FullName)
                         Write-Debug -Message $message
 
-                        if ($PSCmdlet.ShouldProcess($message, 'Remove File')) {
-
+                        if ($PSCmdlet.ShouldProcess($file.FullName, 'Remove File')) {
                             try {
-
                                 Remove-Item -Path $file.FullName -Force -ErrorAction Stop
                                 $result.FilesRemoved++
                                 $result.BytesFreed += $file.Length
 
                             } catch {
-
                                 $errorMsg = ('Failed to remove {0}: {1}' -f
                                     $file.FullName, $_.Exception.Message)
                                 Write-Warning -Message $errorMsg
                                 $result.Errors += $errorMsg
-
                             } #end try-catch
-
                         } #end if
 
                         # Update progress
@@ -155,27 +202,22 @@
                             -Status $message `
                             -PercentComplete (($processedCount / $fileCount) * 100)
                     } #end foreach
-
                 } else {
-
-                    Write-Debug -Message ('No files found in {0}' -f $location.Path)
-
+                    Write-Debug -Message ('No accessible files found in {0}' -f $location.Path)
                 } #end if-else
 
             } catch {
-
                 $errorMsg = ('Error processing {0}: {1}' -f
                     $location.Description, $_.Exception.Message)
-                Write-Error -Message $errorMsg
+                Write-Warning -Message $errorMsg
                 $result.Errors += $errorMsg
-
             } #end try-catch
 
             Write-Progress -Activity ('Cleaning {0}' -f $location.Description) -Completed
         } #end foreach
 
-        $result.Success = ($result.FilesRemoved -gt 0 -and $result.Errors.Count -eq 0)
-
+        # Success if at least one file was removed or there were no errors
+        $result.Success = ($result.FilesRemoved -gt 0 -or $result.Errors.Count -eq 0)
     } #end Process
 
     End {
@@ -190,4 +232,4 @@
 
         return $result
     } #end End
-} #end function Clear-ErrorReports
+} #end function Clear-ErrorReport

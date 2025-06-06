@@ -34,8 +34,8 @@
                 Get-FunctionDisplay                        ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.1
-            DateModified:    7/Apr/2025
+            Version:         1.2
+            DateModified:    10/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
                             vicente@eguibar.com
                             Eguibar IT
@@ -46,7 +46,7 @@
     #>
 
     [CmdletBinding(
-        SupportsShouldProcess = $False,
+        SupportsShouldProcess = $true,
         ConfirmImpact = 'Medium'
     )]
     [OutputType([PSCustomObject])]
@@ -87,67 +87,79 @@
     } #end Begin
 
     Process {
-        # Check if the Recycle Bin is empty
         try {
             Write-Verbose -Message 'Empty RecycleBin'
 
-            # Use .NET approach instead of COM
-            [System.IO.DirectoryInfo]$recycleBin = Get-ChildItem 'Shell:RecycleBinFolder' -Force
-            $totalItems = ($recycleBin | Measure-Object).Count
+            # Use Shell.Application to access Recycle Bin
+            $shell = New-Object -ComObject Shell.Application
+            $recycleBin = $shell.Namespace(0xA) # 0xA is the Recycle Bin
 
-            if ($totalItems -gt 0) {
+            # Get an estimate of items in the recycle bin
+            # This is a rough estimate as we can't directly count items
+            $initialSize = 0
+            $itemCount = 0
 
-                Write-Debug -Message ('Found {0} items in Recycle Bin' -f $totalItems)
-                $processedCount = 0
-
-                foreach ($item in $recycleBin) {
-
-                    $processedCount++
-                    $message = ('Removing {0}' -f $item.Name)
-
-                    Write-Progress -Activity 'Emptying Recycle Bin' `
-                        -Status $message `
-                        -PercentComplete (($processedCount / $totalItems) * 100)
-
+            # Try to enumerate items to get a count and total size
+            $items = $recycleBin.Items()
+            if ($items) {
+                foreach ($item in $items) {
+                    $itemCount++
                     try {
-
-                        $itemSize = $item.Length
-                        Remove-Item -Path $item.FullName -Force -Recurse -ErrorAction Stop
-
-                        $result.ItemsCleared++
-                        $result.BytesFreed += $itemSize
-
-                        Write-Debug -Message ('Removed: {0}' -f $item.FullName)
-
+                        $initialSize += $item.Size
                     } catch {
+                        # Some items may not report size
+                        Write-Debug -Message ('Could not get size for item: {0}' -f $item.Name)
+                    }
+                }
+            }
 
-                        $errorMsg = ('Failed to remove {0}: {1}' -f
-                            $item.Name, $_.Exception.Message)
-                        Write-Warning -Message $errorMsg
-                        $result.Errors += $errorMsg
+            Write-Debug -Message ('Found approximately {0} items in Recycle Bin' -f $itemCount)
 
-                    } #end try-catch
-                } #end foreach
+            if ($PSCmdlet.ShouldProcess('Recycle Bin', 'Empty')) {
+                # Get initial disk space info
+                $drive = Get-PSDrive $env:SystemDrive[0]
+                $initialFree = $drive.Free
 
+                try {
+                    # Empty the Recycle Bin
+                    $recycleBin.Items() | ForEach-Object {
+                        Write-Debug -Message ('Removing item from Recycle Bin: {0}' -f $_.Name)
+                    }
+
+                    # Use the built-in command
+                    $shell.Namespace(0xA).InvokeVerb('EmptyRecycleBin')
+
+                    # Get final disk space info to calculate space freed
+                    $drive = Get-PSDrive $env:SystemDrive[0]
+                    $finalFree = $drive.Free
+                    $bytesFreed = $finalFree - $initialFree
+
+                    # Update result
+                    $result.BytesFreed = $bytesFreed
+                    $result.ItemsCleared = $itemCount
+                    $result.Success = $true
+
+                    Write-Debug -Message ('Freed {0:N2} MB by emptying Recycle Bin' -f ($bytesFreed / 1MB))
+                } catch {
+                    $errorMsg = ('Failed to empty Recycle Bin: {0}' -f $_.Exception.Message)
+                    Write-Warning -Message $errorMsg
+                    $result.Errors += $errorMsg
+                }
             } else {
-
-                Write-Verbose -Message 'Recycle Bin is already empty'
-
-            } #end if-else
-
-            $result.Success = ($result.ItemsCleared -eq $totalItems)
+                Write-Verbose -Message 'Operation cancelled by user'
+            }
 
         } catch {
-
-            Write-Error -Message ('Failed to empty Recycle Bin: {0}' -f $_.Exception.Message)
-            $result.Errors += $_.Exception.Message
-
+            $errorMsg = ('Failed to access Recycle Bin: {0}' -f $_.Exception.Message)
+            Write-Error -Message $errorMsg
+            $result.Errors += $errorMsg
         } finally {
-
-            Write-Progress -Activity 'Emptying Recycle Bin' -Completed
-
+            # Release COM object
+            if ($null -ne $shell) {
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
+            }
+            [System.GC]::Collect()
         } #end try-catch-finally
-
     } #end Process
 
     End {

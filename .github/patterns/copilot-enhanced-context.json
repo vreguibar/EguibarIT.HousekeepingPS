@@ -1,0 +1,78 @@
+﻿{
+    "version": 1,
+    "name": "Enhanced PowerShell Development",
+    "description": "Advanced GitHub Copilot configuration with enhanced context intelligence",
+
+    "contextFilters": {
+        "relevanceScoring": {
+            "enabled": true,
+            "weights": {
+                "recentChanges": 0.4,
+                "similarFunctions": 0.3,
+                "relatedClasses": 0.2,
+                "testFiles": 0.1
+            }
+        },
+        "smartExclusions": [
+            "*/bin/*",
+            "*/obj/*",
+            "*/.git/*",
+            "*/node_modules/*",
+            "*.log",
+            "*.tmp"
+        ]
+    },
+
+    "enhancedLenses": [
+        {
+            "name": "function-complexity",
+            "pattern": "function\\s+([A-Za-z0-9-_]+)\\s*{[\\s\\S]*?}(\\s*#end\\s+function)",
+            "description": "Complex functions that may need refactoring",
+            "importance": "medium",
+            "triggers": ["long-function", "complex-logic"]
+        },
+        {
+            "name": "credential-handling",
+            "pattern": "(\\[PSCredential\\]|Get-Credential|ConvertTo-SecureString)",
+            "description": "Credential handling patterns",
+            "importance": "high",
+            "securityRelevant": true
+        },
+        {
+            "name": "performance-critical",
+            "pattern": "(Get-AD\\w+.*-Filter|DirectorySearcher|PageSize|LDAP)",
+            "description": "Performance-critical AD operations",
+            "importance": "high"
+        },
+        {
+            "name": "error-patterns",
+            "pattern": "(try\\s*{[^}]*catch\\s*\\[([^\\]]+)\\]|Write-Error|throw\\s+)",
+            "description": "Error handling patterns",
+            "importance": "medium"
+        },
+        {
+            "name": "delegation-functions",
+            "pattern": "(Delegate|Grant|Revoke|Permission|ACL|DACL|SACL)",
+            "description": "Security delegation patterns",
+            "importance": "high",
+            "category": "security"
+        }
+    ],
+
+    "semanticContext": {
+        "functionCategories": {
+            "delegation": ["Set-.*Delegate.*", "Grant-.*Permission.*", "New-.*Delegation.*"],
+            "validation": ["Test-.*", "Confirm-.*", "Assert-.*"],
+            "retrieval": ["Get-.*", "Find-.*", "Search-.*"],
+            "modification": ["Set-.*", "Update-.*", "Modify-.*"],
+            "creation": ["New-.*", "Create-.*", "Add-.*"],
+            "removal": ["Remove-.*", "Delete-.*", "Clear-.*"]
+        },
+        "contextClues": {
+            "activeDirectory": ["AD", "LDAP", "DN", "DistinguishedName", "ObjectClass"],
+            "security": ["ACL", "Permission", "Credential", "Principal", "SID"],
+            "performance": ["PageSize", "Filter", "BatchSize", "Pagination"],
+            "errorHandling": ["try", "catch", "throw", "ErrorAction"]
+        }
+    }
+}

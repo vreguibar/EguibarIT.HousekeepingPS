@@ -1,4 +1,4 @@
-﻿function clear-LogFile {
+﻿function Clear-LogFile {
 
     <#
         .SYNOPSIS
@@ -44,8 +44,8 @@
                 Get-FunctionDisplay                    ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.1
-            DateModified:    08/Apr/2025
+            Version:         1.2
+            DateModified:    10/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
                              vicente@eguibar.com
                              Eguibar IT
@@ -57,7 +57,7 @@
     #>
 
     [CmdletBinding(
-        SupportsShouldProcess = $False,
+        SupportsShouldProcess = $true,
         ConfirmImpact = 'Medium'
     )]
     [OutputType([PSCustomObject])]
@@ -71,11 +71,8 @@
             HelpMessage = 'Directory to search for LOG files',
             Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [PSDefaultValue(Help = 'Default Value is "C:\Windows\Powershell_transcriptlog"',
-            Value = 'C:\Windows\Powershell_transcriptlog'
-        )]
         [string]
-        $Directory,
+        $Directory = 'C:\Windows\Powershell_transcriptlog',
 
         [Parameter(
             Mandatory = $false,
@@ -83,13 +80,10 @@
             ValueFromPipelineByPropertyName = $True,
             ValueFromRemainingArguments = $false,
             HelpMessage = 'Number of days old to search for files. Default is 30.',
-            Position = 0)]
+            Position = 1)]
         [ValidateRange(1, 3650)]
-        [PSDefaultValue(Help = 'Default Value is "30"',
-            Value = 30
-        )]
         [int]
-        $Days
+        $Days = 30
     )
 
     Begin {
@@ -139,7 +133,24 @@
         try {
             # Get all files in directory
             $files = Get-ChildItem -Path $Directory -File -ErrorAction Stop
-            $totalFiles = $files.Count
+
+            # Safely determine file count
+            $totalFiles = 0
+            if ($null -ne $files) {
+                if ($files -is [System.Array]) {
+                    $totalFiles = $files.Length
+                } elseif ($files -is [System.IO.FileInfo]) {
+                    # Single file returned
+                    $totalFiles = 1
+                    # Convert single item to array for consistent processing
+                    $files = @($files)
+                } else {
+                    # No files found
+                    $totalFiles = 0
+                    $files = @()
+                }
+            }
+
             Write-Verbose -Message ('Found {0} files in {1}' -f $totalFiles, $Directory)
 
             if ($totalFiles -gt 0) {
@@ -156,10 +167,8 @@
                     if ($file.CreationTime -lt $thresholdDate) {
                         $message = ('Remove file: {0}' -f $file.FullName)
 
-                        if ($PSCmdlet.ShouldProcess($message, 'Remove Log File')) {
-
+                        if ($PSCmdlet.ShouldProcess($file.FullName, 'Remove Log File')) {
                             try {
-
                                 $fileSize = $file.Length
                                 Remove-Item -Path $file.FullName -Force -ErrorAction Stop
 
@@ -168,36 +177,27 @@
 
                                 Write-Debug -Message ('Removed file: {0}' -f $file.FullName)
                             } catch {
-
                                 $errorMsg = ('Failed to remove {0}: {1}' -f
                                     $file.FullName, $_.Exception.Message)
                                 Write-Warning -Message $errorMsg
                                 $result.Errors += $errorMsg
-
                             } #end try-catch
-
                         } #end if
-
                     } else {
-
                         Write-Debug -Message ('Skipping file not older than threshold: {0}' -f $file.Name)
-
                     } #end if-else
                 } #end foreach
             } #end if
 
-            $result.Success = ($result.FilesRemoved -gt 0 -and $result.Errors.Count -eq 0)
+            $result.Success = ($result.Errors.Count -eq 0)
 
         } catch {
-
-            Write-Error -Message ('Error processing directory {0}: {1}' -f
+            $errorMsg = ('Error processing directory {0}: {1}' -f
                 $Directory, $_.Exception.Message)
-            $result.Errors += $_.Exception.Message
-
+            Write-Error -Message $errorMsg
+            $result.Errors += $errorMsg
         } finally {
-
             Write-Progress -Activity 'Removing old log files' -Completed
-
         } #end try-catch-finally
     } #end Process
 
@@ -212,7 +212,5 @@
         } #end If
 
         return $result
-
     } #end End
-
-} #end Function clear-LogFiles
+} #end Function Clear-LogFile

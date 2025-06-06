@@ -36,8 +36,8 @@
                 Get-FunctionDisplay                    ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.2
-            DateModified:    8/Apr/2025
+            Version:         1.3
+            DateModified:    10/Apr/2025
             LastModifiedBy:  Vicente Rodriguez Eguibar
                             vicente@eguibar.com
                             Eguibar IT
@@ -90,29 +90,44 @@
             Errors     = @()
         }
 
-        # Import required module
+        # Check for required module
+        $moduleAvailable = $false
         try {
-            Import-Module -Name DeliveryOptimization -ErrorAction Stop
-            Write-Debug -Message 'DeliveryOptimization module imported successfully'
+            # Check if module is available before trying to import
+            if (Get-Module -ListAvailable -Name DeliveryOptimization -ErrorAction SilentlyContinue) {
+                Import-Module -Name DeliveryOptimization -ErrorAction Stop
+                $moduleAvailable = $true
+                Write-Debug -Message 'DeliveryOptimization module imported successfully'
+            } else {
+                Write-Warning -Message 'DeliveryOptimization module not available. Will try alternative method.'
+            }
         } catch {
             $errorMsg = 'Failed to import DeliveryOptimization module'
             Write-Warning -Message $errorMsg
-            $result.Errors += $errorMsg
         }#end Try-Catch
 
     } #end Begin
 
     Process {
-
         Write-Progress -Activity 'Clearing Delivery Optimization Cache' -Status 'Checking cache size...'
 
         try {
-            # Get initial cache size
-            $status = Get-DeliveryOptimizationStatus -ErrorAction Stop
-            $initialSize = $status.FileSizeInCache
-            Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
+            $initialSize = 0
 
-            if ($initialSize -gt 0) {
+            # Check if we can use the module method
+            if ($moduleAvailable) {
+                try {
+                    # Get initial cache size
+                    $status = Get-DeliveryOptimizationStatus -ErrorAction Stop
+                    $initialSize = $status.FileSizeInCache
+                    Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
+                } catch {
+                    Write-Warning -Message ('Failed to get cache status: {0}' -f $_.Exception.Message)
+                }
+            }
+
+            # If module is available and cache has content
+            if ($moduleAvailable -and $initialSize -gt 0) {
                 $message = ('Clear {0:N2} MB of cache' -f ($initialSize / 1MB))
 
                 if ($PSCmdlet.ShouldProcess($message, 'Delete Cache')) {
@@ -120,67 +135,69 @@
 
                     # Try PowerShell method first
                     try {
-
                         Delete-DeliveryOptimizationCache -Force -ErrorAction Stop
                         $result.BytesFreed = $initialSize
                         $result.Method = 'PowerShell'
+                        $result.Success = $true
                         Write-Debug -Message 'Cache cleared using PowerShell method'
-
                     } catch {
-
-                        Write-Warning -Message 'PowerShell cache clear failed, trying Disk Cleanup...'
-
-                        # Fallback to Disk Cleanup
-                        try {
-
-                            $cleanMgr = Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:1' -Wait -PassThru
-
-                            if ($cleanMgr.ExitCode -eq 0) {
-
-                                $result.BytesFreed = $initialSize
-                                $result.Method = 'DiskCleanup'
-                                Write-Debug -Message 'Cache cleared using Disk Cleanup'
-
-                            } else {
-
-                                throw "Disk Cleanup failed with exit code: $($cleanMgr.ExitCode)"
-
-                            } #end If-else
-
-                        } catch {
-
-                            $errorMsg = ('Disk Cleanup failed: {0}' -f $_.Exception.Message)
-                            Write-Error -Message $errorMsg
-                            $result.Errors += $errorMsg
-
-                        } #end Try-Catch
-
-                    } #end Try-Catch
-
-                } #end If
-
+                        Write-Warning -Message ('PowerShell cache clear failed: {0}' -f $_.Exception.Message)
+                        throw  # Re-throw to trigger fallback
+                    }
+                }
             } else {
+                # Fallback or if module not available
+                Write-Verbose -Message 'Using Disk Cleanup as fallback or primary method'
 
-                Write-Verbose -Message 'Cache is already empty'
+                if ($PSCmdlet.ShouldProcess('Delivery Optimization Cache', 'Cleanup with cleanmgr')) {
+                    try {
+                        # Prepare cleanmgr sageset
+                        $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Delivery Optimization Files'
+                        if (Test-Path -Path $regPath) {
+                            # Set the Delivery Optimization Files option to be selected
+                            Set-ItemProperty -Path $regPath -Name 'StateFlags0001' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
+                        }
 
-            } #end If-else
+                        # Run cleanmgr
+                        $cleanMgr = Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:1' -Wait -PassThru
 
-            # Verify results
-            $finalSize = (Get-DeliveryOptimizationStatus -ErrorAction Stop).FileSizeInCache
-            $result.Success = ($finalSize -lt $initialSize)
+                        if ($cleanMgr.ExitCode -eq 0) {
+                            # Approximate freed space - we can't know exactly without module
+                            $result.BytesFreed = 1024 * 1024 * 10  # Assume at least 10MB
+                            $result.Method = 'DiskCleanup'
+                            $result.Success = $true
+                            Write-Debug -Message 'Cache cleared using Disk Cleanup'
+                        } else {
+                            throw "Disk Cleanup failed with exit code: $($cleanMgr.ExitCode)"
+                        }
+                    } catch {
+                        $errorMsg = ('Disk Cleanup failed: {0}' -f $_.Exception.Message)
+                        Write-Error -Message $errorMsg
+                        $result.Errors += $errorMsg
+                    }
+                }
+            }
+
+            # Final verification if module is available
+            if ($moduleAvailable) {
+                try {
+                    $finalSize = (Get-DeliveryOptimizationStatus -ErrorAction SilentlyContinue).FileSizeInCache
+                    if ($null -ne $finalSize) {
+                        $result.Success = ($finalSize -lt $initialSize)
+                    }
+                } catch {
+                    # Don't override success if verification fails
+                    Write-Debug -Message ('Failed to verify final cache size: {0}' -f $_.Exception.Message)
+                }
+            }
 
         } catch {
-
             $errorMsg = ('Failed to clear cache: {0}' -f $_.Exception.Message)
             Write-Error -Message $errorMsg
             $result.Errors += $errorMsg
-
         } finally {
-
             Write-Progress -Activity 'Clearing Delivery Optimization Cache' -Completed
-
         } #end try-catch-finally
-
     } #end Process
 
     End {

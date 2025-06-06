@@ -16,6 +16,7 @@
             - Error reports
             - Windows logs
             - Delivery optimization files
+            - Log files
 
             Requires administrative privileges.
 
@@ -63,10 +64,11 @@
                 Clear-WindowsUpdate                        ║ EguibarIT.HousekeepingPS
                 Clear-ErrorReport                          ║ EguibarIT.HousekeepingPS
                 Clear-DeliveryOptimizationFile             ║ EguibarIT.HousekeepingPS
+                Clear-LogFile                              ║ EguibarIT.HousekeepingPS
 
         .NOTES
-            Version:         1.3
-            DateModified:    8/Apr/2025
+            Version:         1.4
+            DateModified:    10/Apr/2025
             Author:         Vicente Rodriguez Eguibar
                            vicente@eguibar.com
                            Eguibar IT
@@ -83,7 +85,6 @@
     [OutputType([PSCustomObject])]
 
     Param (
-
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $True,
             ValueFromPipelineByPropertyName = $True,
@@ -212,7 +213,17 @@
             ParameterSetName = 'IndividualCleanup',
             Position = 12)]
         [switch]
-        $DeliveryOptimization
+        $DeliveryOptimization,
+
+        [Parameter(Mandatory = $false,
+            ValueFromPipeline = $True,
+            ValueFromPipelineByPropertyName = $True,
+            ValueFromRemainingArguments = $false,
+            HelpMessage = 'Clear log files (custom log cleanup)',
+            ParameterSetName = 'IndividualCleanup',
+            Position = 13)]
+        [switch]
+        $LogFiles
     )
 
     Begin {
@@ -270,6 +281,7 @@
             $PSBoundParameters['WindowsLogs'] = $true
             $PSBoundParameters['TempFiles'] = $true
             $PSBoundParameters['DeliveryOptimization'] = $true
+            $PSBoundParameters['LogFiles'] = $true
         } #end If
 
     } #end Begin
@@ -277,9 +289,8 @@
     Process {
 
         # Track total operations
-        $totalOperations = ($PSBoundParameters.Keys | Where-Object { $_ -ne 'Verbose' -and $_ -ne 'Debug' }).Count
+        $totalOperations = ($PSBoundParameters.Keys | Where-Object { $_ -ne 'Verbose' -and $_ -ne 'Debug' -and $_ -ne 'WhatIf' -and $_ -ne 'Confirm' }).Count
         $currentOperation = 0
-
 
         try {
             # Disable Hibernation
@@ -322,127 +333,155 @@
                 } #end If
             } #end If
 
-            # Process each cleanup operation
+            # System Restore Points cleanup
+            if ($SystemRestorePoints) {
+                $currentOperation++
+                Write-Progress -Activity 'System Cleanup' -Status 'Deleting System Restore Points' `
+                    -PercentComplete (($currentOperation / $totalOperations) * 100)
+                if ($PSCmdlet.ShouldProcess('System Restore Points', 'Delete')) {
+                    try {
+                        $process = Start-Process -FilePath 'vssadmin.exe' `
+                            -ArgumentList 'Delete Shadows /All /Quiet' `
+                            -Wait -NoNewWindow -PassThru
+                        if ($process.ExitCode -eq 0) {
+                            $result.OperationsRun++
+                            Write-Debug -Message 'System Restore Points deleted successfully'
+                        } else {
+                            throw "vssadmin exited with code: $($process.ExitCode)"
+                        }
+                    } catch {
+                        $errorMsg = "Failed to delete System Restore Points: $($_.Exception.Message)"
+                        Write-Warning -Message $errorMsg
+                        $result.Errors += $errorMsg
+                    } #end try-catch
+                } #end If
+            } #end If
+
+            # Define the cleanup operations mapping
             $cleanupOperations = @(
-                @{ Name = 'RecycleBin'; Function = 'Clear-RecycleBin' }
-                @{ Name = 'TemporaryFiles'; Function = 'Clear-TemporaryFile' }
-                @{ Name = 'WindowsLogs'; Function = 'Clear-WindowsLog' }
-                @{ Name = 'UserProfiles'; Function = 'Clear-UserProfile'; Args = @{ ProfileAge = 65 } }
-                @{ Name = 'WindowsUpdate'; Function = 'Clear-WindowsUpdate' }
-                @{ Name = 'ErrorReports'; Function = 'Clear-ErrorReport' }
-                @{ Name = 'DeliveryOptimization'; Function = 'Clear-DeliveryOptimizationFile' }
+                @{ ParamName = 'CCM'; FunctionName = 'Clear-CCMcache'; Args = @{} }
+                @{ ParamName = 'DeliveryOptimization'; FunctionName = 'Clear-DeliveryOptimizationFile'; Args = @{} }
+                @{ ParamName = 'ErrorReport'; FunctionName = 'Clear-ErrorReport'; Args = @{} }
+                @{ ParamName = 'LogFiles'; FunctionName = 'Clear-LogFile'; Args = @{} }
+                @{ ParamName = 'RecycleBin'; FunctionName = 'Clear-RecycleBin'; Args = @{} }
+                @{ ParamName = 'TempFiles'; FunctionName = 'Clear-TemporaryFile'; Args = @{} }
+                @{ ParamName = 'Folders'; FunctionName = 'Clear-TemporaryFolder'; Args = @{} }
+                @{ ParamName = 'Profiles'; FunctionName = 'Clear-UserProfile'; Args = @{ ProfileAge = 65 } }
+                @{ ParamName = 'WindowsLogs'; FunctionName = 'Clear-WindowsLog'; Args = @{} }
+                @{ ParamName = 'WindowsUpdate'; FunctionName = 'Clear-WindowsUpdate'; Args = @{} }
             )
 
+            # Process each cleanup operation
             foreach ($operation in $cleanupOperations) {
-
-                if ($PSBoundParameters[$operation.Name]) {
-
+                if ($PSBoundParameters.ContainsKey($operation.ParamName)) {
                     $currentOperation++
-                    Write-Progress -Activity 'System Cleanup' -Status "Running $($operation.Name)" `
+                    Write-Progress -Activity 'System Cleanup' -Status "Running $($operation.ParamName)" `
                         -PercentComplete (($currentOperation / $totalOperations) * 100)
 
-                    if ($PSCmdlet.ShouldProcess($operation.Name, 'Cleanup')) {
-
+                    if ($PSCmdlet.ShouldProcess($operation.ParamName, 'Cleanup')) {
                         try {
-                            $params = @{}
-                            if ($operation.Args) {
+                            Write-Verbose -Message ('Executing {0} with args: {1}' -f $operation.FunctionName,
+                                ($operation.Args.Keys -join ', '))
 
-                                $params = $operation.Args
+                            # Check if function exists
+                            if (Get-Command -Name $operation.FunctionName -ErrorAction SilentlyContinue) {
+                                $scriptBlock = [scriptblock]::Create($operation.FunctionName)
+                                $cleanupResult = & $scriptBlock @($operation.Args)
 
-                            } #end If
+                                # Handle result based on properties
+                                if ($null -ne $cleanupResult) {
+                                    if ($cleanupResult -is [PSCustomObject] -and $cleanupResult.PSObject.Properties.Name -contains 'Success') {
+                                        if ($cleanupResult.Success) {
+                                            $result.OperationsRun++
 
-                            $cleanupResult = & $operation.Function @params
-                            if ($cleanupResult.Success) {
+                                            # Add freed space if available
+                                            if ($cleanupResult.PSObject.Properties.Name -contains 'BytesFreed') {
+                                                $result.SpaceRecovered += $cleanupResult.BytesFreed
+                                            }
 
-                                $result.OperationsRun++
-                                Write-Debug -Message ('{0} completed successfully' -f $operation.Name)
-
+                                            Write-Debug -Message ('{0} completed successfully' -f $operation.FunctionName)
+                                        } else {
+                                            Write-Warning -Message ('{0} reported failure' -f $operation.FunctionName)
+                                            if ($cleanupResult.PSObject.Properties.Name -contains 'Errors') {
+                                                foreach ($err in $cleanupResult.Errors) {
+                                                    $result.Errors += $err
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        # Generic success for functions without proper return structure
+                                        $result.OperationsRun++
+                                        Write-Debug -Message ('{0} executed without proper return structure' -f $operation.FunctionName)
+                                    }
+                                } else {
+                                    Write-Warning -Message ('{0} returned null' -f $operation.FunctionName)
+                                }
                             } else {
-
-                                $result.Errors += $cleanupResult.Errors
-
-                            } #end If-else
+                                $errorMsg = ('Function {0} not found' -f $operation.FunctionName)
+                                Write-Warning -Message $errorMsg
+                                $result.Errors += $errorMsg
+                            }
 
                         } catch {
-
-                            $errorMsg = "Failed to run $($operation.Name): $($_.Exception.Message)"
+                            $errorMsg = "Failed to run $($operation.FunctionName): $($_.Exception.Message)"
                             Write-Warning -Message $errorMsg
                             $result.Errors += $errorMsg
-
                         } #end try-catch
-
                     } #end If
-
                 } #end If
-
             } #end foreach
 
             # Special handling for DISM cleanup
             if ($Image) {
-
                 $currentOperation++
                 Write-Progress -Activity 'System Cleanup' -Status 'Running Image Cleanup' `
                     -PercentComplete (($currentOperation / $totalOperations) * 100)
 
                 if ($PSCmdlet.ShouldProcess('Windows Image', 'Cleanup')) {
-
                     try {
-
                         if ([Environment]::OSVersion.Version -lt (New-Object 'Version' 6, 2)) {
-
                             $process = Start-Process -FilePath 'dism.exe' `
                                 -ArgumentList '/Online /Cleanup-Image /StartComponentCleanup' `
                                 -Wait -NoNewWindow -PassThru
 
                             if ($process.ExitCode -eq 0) {
-
                                 $result.OperationsRun++
-
                             }#end If
-
                         } else {
-
                             $process = Start-Process -FilePath 'dism.exe' `
                                 -ArgumentList '/Online /Cleanup-Image /StartComponentCleanup /ResetBase' `
                                 -Wait -NoNewWindow -PassThru
 
                             if ($process.ExitCode -eq 0) {
-
                                 $result.OperationsRun++
-
                             } #end If
-
                         } #end If-else
-
                     } catch {
-
                         $errorMsg = "Image cleanup failed: $($_.Exception.Message)"
                         Write-Warning -Message $errorMsg
                         $result.Errors += $errorMsg
-
                     } #end try-catch
-
                 } #end If
-
             } #end If
 
-            # Calculate space recovered
+            # Calculate space recovered from disk if we haven't been tracking precisely
             $finalFreeSpace = (Get-PSDrive $env:SystemDrive[0]).Free
-            $result.SpaceRecovered = $finalFreeSpace - $initialFreeSpace
+            $diskSpaceRecovered = $finalFreeSpace - $initialFreeSpace
+
+            # If disk space calculation shows more recovery than our tracking, use that value
+            if ($diskSpaceRecovered > $result.SpaceRecovered) {
+                $result.SpaceRecovered = $diskSpaceRecovered
+            }
+
             $result.Success = ($result.OperationsRun -gt 0 -and $result.Errors.Count -eq 0)
 
         } catch {
-
             $errorMsg = "Cleanup failed: $($_.Exception.Message)"
             Write-Error -Message $errorMsg
             $result.Errors += $errorMsg
-
         } finally {
-
             Write-Progress -Activity 'System Cleanup' -Completed
-
         } #end try-catch-finally
-
     } #end Process
 
     End {
