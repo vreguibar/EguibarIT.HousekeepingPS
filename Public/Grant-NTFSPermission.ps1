@@ -188,6 +188,15 @@ function Grant-NTFSPermission {
         # Variables Definition
 
         [boolean]$Result = $false
+        [int]$ProcessedItems = 0
+        [int]$TotalItems = 1
+
+        # Handle both single string and array inputs for Path parameter
+        if ($Path -is [array]) {
+            $TotalItems = $Path.Count
+        } else {
+            $TotalItems = 1
+        }
 
         # Parse the permission string to handle multiple values
         $FileSystemRights = try {
@@ -208,6 +217,17 @@ function Grant-NTFSPermission {
         try {
 
             Write-Verbose -Message ('Processing NTFS permission for {0} on {1}' -f $Identity, $Path)
+
+            # Update progress only if processing multiple items
+            if ($TotalItems -gt 1) {
+                $ProcessedItems++
+                $SplatProgress = @{
+                    Activity        = 'Granting NTFS Permissions'
+                    Status          = ('Processing path {0} of {1}: {2}' -f $ProcessedItems, $TotalItems, $Path)
+                    PercentComplete = [Math]::Min(100, ($ProcessedItems / $TotalItems * 100))
+                }
+                Write-Progress @SplatProgress
+            } #end if
 
             if ($PSCmdlet.ShouldProcess($Path, ('Grant {0} permissions to {1}' -f $Permission, $Identity))) {
 
@@ -292,6 +312,11 @@ function Grant-NTFSPermission {
     } #end Process
 
     End {
+        # Complete the progress bar if it was used
+        if ($TotalItems -gt 1) {
+            Write-Progress -Activity 'Granting NTFS Permissions' -Completed
+        } #end if
+
         # Display function footer if variables exist
         if ($null -ne $Variables -and
             $null -ne $Variables.FooterHousekeeping) {

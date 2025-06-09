@@ -1,4 +1,4 @@
-﻿$Variables = [ordered] @{
+﻿$Variables = @{
 
     # Active Directory DistinguishedName
     AdDN                       = $null
@@ -98,6 +98,7 @@ $Splat = @{
     Scope       = 'Global'
     Force       = $true
 }
+
 
 # Define the initial variable structure if it doesn't exist yet
 if (-not (Get-Variable -Name 'Variables' -Scope Global -ErrorAction SilentlyContinue)) {

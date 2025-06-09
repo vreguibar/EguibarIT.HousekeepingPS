@@ -1,4 +1,4 @@
-# Get Enums.
+# Get Enums
 if (Test-Path -Path "$PSScriptRoot\Enums") {
     $Enums = @( Get-ChildItem -Path "$PSScriptRoot\Enums\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
 
@@ -6,10 +6,10 @@ if (Test-Path -Path "$PSScriptRoot\Enums") {
     foreach ($Item in $Enums) {
         Try {
             . $Item.FullName
-            Write-Verbose -Message "Imported $($Item.BaseName)"
+            Write-Debug -Message ('Enum Imported {0}' -f $($Item.BaseName))
         } Catch {
+            Write-Error -Message ('Could not load Enum [{0}] : {1}' -f $Item.Name, $_.Message)
             throw
-            Write-Error -Message "Could not load Enum [$($Item.Name)] : $($_.Message)"
         } #end Try-Catch
     } #end Foreach
 } #end If
@@ -21,30 +21,48 @@ if (Test-Path -Path "$PSScriptRoot\Classes") {
     foreach ($Item in $Classes) {
         Try {
             . $Item.FullName
-            Write-Verbose -Message "Imported $($Item.BaseName)"
+            Write-Debug -Message ('Class Imported {0}' -f $($Item.BaseName))
         } Catch {
+            Write-Error -Message ('Could not load Class [{0}] : {1}' -f $Item.Name, $_.Message)
             throw
-            Write-Error -Message "Could not load Enum [$($Item.Name)] : $($_.Message)"
         } #end Try-Catch
     } #end Foreach
 } #end If
 
-#Get public and private function definition files.
-$Private = @( Get-ChildItem -Path "$PSScriptRoot\Private\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
-$Public = @( Get-ChildItem -Path "$PSScriptRoot\Public\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
 
-#Dot source the files
-Foreach ($Item in @($Private + $Public)) {
+# Load Private Functions
+$Private = @( Get-ChildItem -Path "$PSScriptRoot\Private\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
+foreach ($Item in $Private) {
     Try {
-        . $Item.fullname
-        # Write-Warning $import.fullname
+        . $Item.Fullname
+        Write-Debug -Message ('Private Function Imported {0}' -f $($Item.BaseName))
     } Catch {
-        Write-Error -Message "Failed to import functions from $($Item.Fullname): $_"
+        Write-Error -Message ('Failed to import private function from {0}: {1}"' -f $Item.Fullname, $_.Exception.Message)
+        Throw
     }
 }
 
-Export-ModuleMember -Function $Public.BaseName -Alias '*'
+# Load Public Functions
+$Public = @( Get-ChildItem -Path "$PSScriptRoot\Public\" -Filter *.ps1 -ErrorAction SilentlyContinue -Recurse )
+foreach ($Item in $Public) {
+    Try {
+        . $Item.Fullname
+        Write-Debug -Message ('Public Function Imported {0}' -f $($Item.BaseName))
+    } Catch {
+        Write-Error -Message ('Failed to import public function from {0}: {1}"' -f $Item.Fullname, $_.Exception.Message)
+        Throw
+    }
+}
 
-# Call function Initialize-ModuleVariable to fill-up $Variables
-# . "$PSScriptRoot\Private\Initialize-ModuleVariable"
-Initialize-ModuleVariable
+Export-ModuleMember -Function '*' -Alias '*' -Verbose:$false | Out-Null
+
+Try {
+    # Call function Initialize-ModuleVariable to fill-up $Variables
+    Initialize-ModuleVariable
+    return $true
+} catch {
+    Write-Error -Message ('Failed to update AD variables: {0}' -f $_)
+    return $false
+}
+
+

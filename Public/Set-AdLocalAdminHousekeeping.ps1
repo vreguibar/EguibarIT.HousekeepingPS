@@ -99,7 +99,7 @@
             Value = { $Env:USERDNSDOMAIN }
         )]
         [string]
-        $Domain,
+        $Domain = $Env:USERDNSDOMAIN,
 
         [Parameter(Mandatory = $true,
             ValueFromPipeline = $true,
@@ -119,11 +119,17 @@
     begin {
         Set-StrictMode -Version Latest
 
-        Write-Verbose -Message ($Variables.HeaderHousekeeping -f
-            (Get-Date).ToString('dd/MMM/yyyy'),
-            $MyInvocation.MyCommand,
-            (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$false)
-        )
+        # Display function header if variables exist
+        if ($null -ne $Variables -and
+            $null -ne $Variables.HeaderHousekeeping) {
+
+            $txt = ($Variables.HeaderHousekeeping -f
+                (Get-Date).ToString('dd/MMM/yyyy'),
+                $MyInvocation.Mycommand,
+                (Get-FunctionDisplay -Hashtable $PsBoundParameters -Verbose:$False)
+            )
+            Write-Verbose -Message $txt
+        } #end If
 
         ##############################
         # Module imports
@@ -136,18 +142,52 @@
 
         # explicit type declaration of HashTable
         [hashtable]$Splat = [hashtable]::New([StringComparer]::OrdinalIgnoreCase)
-
+        [string]$DomainControllerName = $null
 
         try {
 
-            # Find a domain controller in the specified domain
-            $domainController = Get-ADDomainController -Discover -DomainName $Domain -ErrorAction Stop
-            Write-Verbose -Message ('Using domain controller {0} for domain operations.' -f $domainController.HostName)
+            # If Domain parameter is null or empty, use current domain
+            if ([string]::IsNullOrWhiteSpace($Domain)) {
+                if ([string]::IsNullOrWhiteSpace($Env:USERDNSDOMAIN)) {
+                    throw 'Unable to determine domain.
+                        Please specify the Domain parameter or ensure the computer is domain-joined.'
+                } #end if
+                $Domain = $Env:USERDNSDOMAIN
+            } #end if
+
+            Write-Verbose -Message ('Attempting to discover domain controller for domain: {0}' -f $Domain)
+
+            # Try to discover a domain controller
+            try {
+                $domainController = Get-ADDomainController -Discover -DomainName $Domain -ErrorAction Stop
+                $DomainControllerName = $domainController.HostName.ToString()
+            } catch {
+                Write-Warning -Message ('Domain controller discovery failed for {0}: {1}' -f $Domain, $_.Exception.Message)
+
+                # Fallback: try to get any available domain controller for the current domain
+                try {
+                    Write-Verbose -Message 'Attempting fallback: Getting any available domain controller...'
+                    $domainController = Get-ADDomainController -ErrorAction Stop
+                    $DomainControllerName = $domainController.HostName.ToString()
+                    Write-Verbose -Message ('Using fallback domain controller: {0}' -f $DomainControllerName)
+                } catch {
+                    throw (
+                        'Unable to locate any domain controller.
+                        Please verify:
+                            1) Active Directory Web Services is running on domain controllers,
+                            2) Network connectivity is available,
+                            3) DNS resolution is working properly. Error: {0}' -f
+                        $_.Exception.Message
+                    )
+                } #end try-catch
+            } #end try-catch
+
+            Write-Verbose -Message ('Using domain controller {0} for domain operations.' -f $DomainControllerName)
 
             # Get all computer objects categorized as servers, excluding Domain Controllers
             $Splat = @{
                 LDAPFilter = '(&(objectClass=computer)(operatingSystem=*server*)(!(primaryGroupID=516)))'
-                Server     = $domainController.HostName
+                Server     = $DomainControllerName
                 Properties = 'Name'
             }
             $servers = Get-ADComputer @Splat
@@ -155,7 +195,20 @@
 
         } catch [Microsoft.ActiveDirectory.Management.ADServerDownException] {
 
-            Write-Error -Message ('Unable to connect to domain controller: {0}' -f $_.Exception.Message)
+            Write-Error -Message (
+                'Unable to connect to domain controller: {0}.
+                Please verify that Active Directory Web Services is running and the server is accessible.' -f
+                $_.Exception.Message
+            )
+            return
+
+        } catch [System.ComponentModel.Win32Exception] {
+
+            Write-Error -Message (
+                'Network or DNS error: {0}.
+                Please verify network connectivity and DNS resolution.' -f
+                $_.Exception.Message
+            )
             return
 
         } catch {
@@ -191,7 +244,7 @@
                 $groupName = 'Admin_{0}' -f $server.Name
 
                 # Get the group. If NotFound exception variable will be Null
-                $group = Get-ADGroup -Filter { Name -eq $groupName } -Server $($domainController.HostName) -ErrorAction SilentlyContinue
+                $group = Get-ADGroup -Filter { Name -eq $groupName } -Server $DomainControllerName -ErrorAction SilentlyContinue
 
                 if (-not $group) {
 
@@ -204,7 +257,7 @@
                             DisplayName   = '{0} Local Administrators members' -f $server.Name
                             Path          = $PsBoundParameters['LDAPPath']
                             Description   = 'Local Admin group for {0}' -f $server.Name
-                            Server        = $($domainController.HostName)
+                            Server        = $DomainControllerName
                             ErrorAction   = 'Stop'
                         }
                         New-ADGroup @Splat
@@ -228,16 +281,11 @@
         # Cleanup obsolete groups
         Write-Verbose -Message 'Starting cleanup of obsolete admin groups'
 
-
-
-
-
-
         try {
             # Check all groups on given LDAPPAth for obsolete entries
             $Splat = @{
                 Filter     = '*'
-                Server     = $($domainController.HostName)
+                Server     = $DomainControllerName
                 SearchBase = $PsBoundParameters['LDAPPath']
                 Properties = 'Members'
             }
@@ -247,7 +295,7 @@
             foreach ($group in $adminGroups) {
 
                 # Exclude groups that do not follow the naming convention
-                if ($group -match '^Admin_[A-Za-z0-9_-]+$') {
+                if ($group.Name -match '^Admin_[A-Za-z0-9_-]+$') {
 
                     # Extract server name from group name
                     $hostName = $group.Name -replace '^Admin_', ''
@@ -255,40 +303,34 @@
                     # Find the corresponding server object
                     $server = $servers | Where-Object { $_.Name -eq $hostName }
 
-                    if (-not $server -and $PSCmdlet.ShouldProcess($group.Name, 'Delete obsolete group')) {
+                    if (-not $server) {
 
-                        if ($PSCmdlet.ShouldProcess($group.Name, 'Delete group')) {
+                        if ($PSCmdlet.ShouldProcess($group.Name, 'Delete obsolete group')) {
 
-                            # For testing purposes
-                            if (($PSBoundParameters.ContainsKey('WhatIf') -and $WhatIf -eq $false) -or
-                                (!$PSBoundParameters.ContainsKey('WhatIf'))) {
-
-                                Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                                Write-Verbose -Message ('
-                                Deleted group {0}
-                                because the corresponding server no longer exists.' -f $group.Name
-                                )
-
-                            } #end If
-
-                        } #end If
-
-                    } else {
-
-                        if ($PSCmdlet.ShouldProcess($group.Name, 'Delete non-compliant group')) {
-
-                            # Remove this group because it does not follow naming convention, or it does not belongs to this OU.
-                            Remove-ADGroup -Identity $group -Confirm:$false -Server $($domainController.HostName)
-                            Write-Verbose -Message ('
-                            Deleted group {0}
-                            because does not follow the naming conventions.' -f $group.Name
+                            Remove-ADGroup -Identity $group -Confirm:$false -Server $DomainControllerName
+                            Write-Verbose -Message (
+                                'Deleted obsolete group {0} because the corresponding server no longer exists.' -f
+                                $group.Name
                             )
 
                         } #end If
 
                     } #end If
 
-                }#end If
+                } else {
+
+                    if ($PSCmdlet.ShouldProcess($group.Name, 'Delete non-compliant group')) {
+
+                        # Remove this group because it does not follow naming convention
+                        Remove-ADGroup -Identity $group -Confirm:$false -Server $DomainControllerName
+                        Write-Verbose -Message (
+                            'Deleted non-compliant group {0} because it does not follow the naming conventions.' -f
+                            $group.Name
+                        )
+
+                    } #end If
+
+                } #end If-Else
 
             } #end ForEach
 
@@ -310,10 +352,11 @@
             $null -ne $Variables.FooterHousekeeping) {
 
             $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
-                'setting group for Local Administrators.'
+                'creating corrresponding Admin_<HostName> group.'
             )
             Write-Verbose -Message $txt
         } #end If
+
     } #end End
 } #end function Set-AdLocalAdminHousekeeping
 
