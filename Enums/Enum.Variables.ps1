@@ -42,6 +42,20 @@
     }
     EventLogInitialized        = $false
 
+    # Standard header (EguibarIT module compatibility)
+    Header                     = @'
+
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃                                        EguibarIT module                                          ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+            Date:     {0}
+            Starting: {1}
+
+    Parameters used by the function... {2}
+
+'@
+
+
     # Standard header used on each function on the Begin section
     HeaderHousekeeping         = @'
 
@@ -54,6 +68,17 @@
           Parameters used by the function... {2}
 
 '@
+
+
+    # Standard footer (EguibarIT module compatibility)
+    Footer                     = @'
+
+        Function {0} finished {1}"
+
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+
+'@
+
 
     # Standard footer used on each function on the Begin section
     FooterHousekeeping         = @'

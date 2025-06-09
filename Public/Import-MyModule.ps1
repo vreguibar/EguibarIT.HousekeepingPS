@@ -131,7 +131,7 @@
     )
 
     Begin {
-        $txt = ($Variables.Header -f
+        $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
             (Get-FunctionDisplay -HashTable $PsBoundParameters -Verbose:$False)
@@ -272,7 +272,7 @@
     End {
         $VerbosePreference = $Preference
 
-        $txt = ($Variables.Footer -f $MyInvocation.InvocationName,
+        $txt = ($Variables.FooterHousekeeping -f $MyInvocation.InvocationName,
             'importing module.'
         )
         Write-Verbose -Message $txt

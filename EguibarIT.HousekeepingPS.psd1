@@ -51,12 +51,7 @@
     ProcessorArchitecture = 'Amd64'
 
     # Modules that must be imported into the global environment prior to importing this module
-    RequiredModules       = RequiredModules = @(
-        @{ ModuleName = 'ActiveDirectory'; ModuleVersion = '1.0.0.0' },
-        @{ ModuleName = 'GroupPolicy'; ModuleVersion = '1.0.0.0' },
-        @{ ModuleName = 'ServerManager'; ModuleVersion = '1.0.0.0' },
-        @{ ModuleName = 'EguibarIT.DelegationPS'; ModuleVersion = '1.0.0.0' }
-    )
+    # RequiredModules       = @()
 
     # Assemblies that must be loaded prior to importing this module
     # RequiredAssemblies = @()
@@ -74,16 +69,7 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport     = 'Clear-AdAdminCount', 'Get-AdOrphanGPO', 'Get-AdOrphanGPT',
-    'Get-AdStaleComputer', 'Get-RandomPassword', 'Import-MyModule',
-    'New-gMSAScheduledTask', 'New-SemiPrivilegedUser', 'Send-Email',
-    'Send-NotificationEmail', 'Send-NotificationGraphEmail',
-    'Set-AdLocalAdminHousekeeping', 'Set-AllGroupAdminCount',
-    'Set-AllUserAdminCount', 'Set-NonPrivilegedGroupHousekeeping',
-    'Set-PrivilegedComputerHousekeeping',
-    'Set-PrivilegedGroupsHousekeeping',
-    'Set-PrivilegedUsersHousekeeping', 'Set-SemiPrivilegedKeyPairCheck',
-    'Set-SemiPrivilegedUser', 'Set-ServiceAccountHousekeeping'
+    FunctionsToExport     = '*'
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport       = '*'

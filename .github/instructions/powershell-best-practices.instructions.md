@@ -74,7 +74,7 @@ Perform a regular review of delegated permissions to ensure they are still appro
 
 ## 6. Examples
 
-### Good vs. Bad Practices for AD Queries
+### Good vs. Bad Practices
 
 ```powershell
 # Good - uses indexed attributes
@@ -106,6 +106,32 @@ $Tier2Admins = "SG_Tier2Admins"
 Set-AdAclDelegateComputerAdmin -Group $Tier0Admins -LDAPPath "OU=Domain Controllers,DC=contoso,DC=com"
 Set-AdAclDelegateComputerAdmin -Group $Tier1Admins -LDAPPath "OU=Servers,DC=contoso,DC=com"
 Set-AdAclDelegateComputerAdmin -Group $Tier2Admins -LDAPPath "OU=Workstations,DC=contoso,DC=com"
+
+# PowerShell Object Creation Best Practices
+# Use .NET types for object creation when possible, as they are more efficient and clearer.
+
+# Good - Use .NET types for object creation
+[System.Security.Principal.NTAccount]::new($Identity)
+
+[System.Security.AccessControl.FileSystemAccessRule]::new(
+  $Account,
+  $FileSystemRights,
+  $InheritanceFlags,
+  $PropagationFlags,
+  $AccessControlType
+)
+
+# Avoid unless justified reason (no other way to create the object)
+# Bad - Using New-Object for object creation, which is less efficient
+New-Object -TypeName System.Security.Principal.NTAccount -ArgumentList $Identity
+
+New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList (
+    $Account,
+    $FileSystemRights,
+    $InheritanceFlags,
+    $PropagationFlags,
+    $AccessControlType
+  )
 ```
 
 ## 7. References
