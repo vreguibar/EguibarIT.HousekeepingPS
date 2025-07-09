@@ -197,7 +197,8 @@
 
             } #end if
 
-            $result.Success = ($result.ProfilesRemoved -gt 0 -and $result.Errors.Count -eq 0)
+            # Success should be based on whether we had errors, not whether profiles were found
+            $result.Success = ($result.Errors.Count -eq 0)
 
         } catch {
 

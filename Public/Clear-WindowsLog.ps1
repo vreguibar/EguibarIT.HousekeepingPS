@@ -133,10 +133,12 @@
 
                     if ($files) {
 
-                        $totalFiles = $files.Count
+                        # Ensure $files is always an array to avoid Count property issues
+                        $fileArray = @($files)
+                        $totalFiles = $fileArray.Count
                         $processedCount = 0
 
-                        foreach ($file in $files) {
+                        foreach ($file in $fileArray) {
 
                             $processedCount++
                             $message = ('Removing {0}' -f $file.FullName)
@@ -203,7 +205,8 @@
             Write-Progress -Activity 'Clearing Windows Logs' -Completed
         } #end try-catch-finally
 
-        $result.Success = ($result.LogsCleared -gt 0 -and $result.Errors.Count -eq 0)
+        # Success should be based on whether we had errors, not whether logs were found
+        $result.Success = ($result.Errors.Count -eq 0)
 
     } #end Process
 

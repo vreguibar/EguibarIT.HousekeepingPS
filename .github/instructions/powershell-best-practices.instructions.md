@@ -71,6 +71,7 @@ Perform a regular review of delegated permissions to ensure they are still appro
 * **Specify Required Properties:** Specify only required Properties when retrieving AD objects.
 * **`ServerTimeLimit` and `SizeLimit`:** Use `ServerTimeLimit` and `SizeLimit` when appropriate.
 * **Indexed Attribute Searches:** Prefer indexed attribute searches.
+* **Starting Processes:** Use `Start-Process` with `-ArgumentList` and `-Wait` avoid blocking the main thread. Include any executable or non-PowerShell script.
 
 ## 6. Examples
 
@@ -132,6 +133,15 @@ New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -Argumen
     $PropagationFlags,
     $AccessControlType
   )
+
+# string formatting
+# Good - Use String formatting for clarity and maintainability
+$SetupArgs.Add('/INSTANCENAME={0}' -f $InstanceName)
+$SetupArgs.Add('/INSTANCEDIR="{0}"' -f $InstallDir)
+
+# Bad -avoid using backtick for line continuation. Avoid having variables within strings using double quotes.
+$SetupArgs.Add("/INSTANCENAME=`"$InstanceName`"")
+$SetupArgs.Add("/INSTANCEDIR=`"$InstallDir`"")
 ```
 
 ## 7. References

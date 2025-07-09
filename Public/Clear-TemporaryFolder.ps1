@@ -181,7 +181,8 @@
 
         } #end foreach
 
-        $result.Success = ($result.FoldersCleared -gt 0 -and $result.Errors.Count -eq 0)
+        # Success should be based on whether we had errors, not whether folders were found
+        $result.Success = ($result.Errors.Count -eq 0)
 
     } #end Process
 

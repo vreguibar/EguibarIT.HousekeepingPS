@@ -12,14 +12,26 @@
             Specifies the Distinguished Name of the OU where admin user accounts are stored.
 
         .PARAMETER DisableNonStandardUsers
-            If this switch is provided, the function will disable user accounts that do not follow the standard naming conventions.
+            If this switch is provided, the function will disable user accounts that do not follow the
+            standard naming conventions.
 
         .EXAMPLE
             Set-PrivilegedUsersHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local" -DisableNonStandardUsers
             This example will classify users in the specified OU and disable non-standard users.
 
         .EXAMPLE
-            Set-PrivilegedUsersHousekeeping -AdminUsersDN 'OU=Users,OU=Admin,DC=EguibarIT,DC=local' -Tier0Group 'SG_Tier0Admins' -Tier1Group 'SG_Tier1Admins' -Tier2Group 'SG_Tier2Admins' -ExcludeList @('TheGood', 'TheUgly') -DisableNonStandardUsers -Verbose
+            $Params = @{
+                AdminUsersDN = 'OU=Users,OU=Admin,DC=EguibarIT,DC=local'
+                Tier0Group = 'SG_Tier0Admins'
+                Tier1Group = 'SG_Tier1Admins'
+                Tier2Group = 'SG_Tier2Admins'
+                ExcludeList = @('TheGood', 'TheUgly')
+                DisableNonStandardUsers = $true
+                Verbose = $true
+            }
+            Set-PrivilegedUsersHousekeeping @Params
+
+            This example shows using splatting for better readability with many parameters.
 
         .EXAMPLE
             Set-PrivilegedUsersHousekeeping -AdminUsersDN "OU=Users,OU=Admin,DC=EguibarIT,DC=local"
@@ -50,7 +62,7 @@
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([void])]
 
-    Param (
+    param (
 
         #Param1
         [Parameter(Mandatory = $true,
@@ -108,7 +120,8 @@
         $DisableNonStandardUsers
 
     )
-    Begin {
+
+    begin {
         $txt = ($Variables.HeaderHousekeeping -f
             (Get-Date).ToShortDateString(),
             $MyInvocation.Mycommand,
@@ -128,7 +141,7 @@
         [int]$i = 0
 
         # If parameter is parsed, initialize variable to be used by default objects
-        If (-Not $PSBoundParameters.ContainsKey('ExcludeList')) {
+        if (-not $PSBoundParameters.ContainsKey('ExcludeList')) {
             $ExcludeList = [System.Collections.Generic.List[String]]::New()
         } #end If
 
@@ -142,7 +155,7 @@
             $users = Get-ADUser -Filter * | Where-Object -FilterScript { $_.SID -like $sid }
 
             foreach ($item in $users) {
-                If ($item.SamAccountName -notin $ExcludeList) {
+                if ($item.SamAccountName -notin $ExcludeList) {
                     $ExcludeList.Add($item.SamAccountName) | Out-Null
                 }
             } # end foreach
@@ -173,14 +186,17 @@
         # Initialize and Get each tier group
         $tierGroups = @{
             T0 = Get-AdObjectType -Identity $PsBoundParameters['Tier0Group']
+            T1 = $null
+            T2 = $null
+        }
 
-            T1 = if ($Tier1Group) {
-                Get-AdObjectType -Identity $PsBoundParameters['Tier1Group']
-            }
+        # Conditionally populate T1 and T2 groups
+        if ($Tier1Group) {
+            $tierGroups['T1'] = Get-AdObjectType -Identity $PsBoundParameters['Tier1Group']
+        }
 
-            T2 = if ($Tier2Group) {
-                Get-AdObjectType -Identity $PsBoundParameters['Tier2Group']
-            }
+        if ($Tier2Group) {
+            $tierGroups['T2'] = Get-AdObjectType -Identity $PsBoundParameters['Tier2Group']
         }
 
         # Define group per each tier to hold members
@@ -202,10 +218,10 @@
 
     } #end Begin
 
-    Process {
+    process {
 
         # Iterate all found users
-        Foreach ($user in $AllPrivUsers) {
+        foreach ($user in $AllPrivUsers) {
             $i ++
 
             # Display the progress bar
@@ -219,7 +235,7 @@
             # Check Exclude list
             if ($user.SamAccountName -in $ExcludeList) {
                 continue
-            }
+            } #end if
 
             # Check if EmployeeType is defined. Otherwise use last 3 characters of SamAccountName
             $tier = if ($user.EmployeeType -in @('T0', 'T1', 'T2')) {
@@ -266,7 +282,7 @@
         } #end ForEach
     } #end Process
 
-    End {
+    end {
         $summary = $tierMembers.GetEnumerator() | ForEach-Object {
             '   {0} Members: {1}' -f $_.Key, $_.Value.Count
         } # end ForEach-Object

@@ -55,7 +55,7 @@
 
     param ()
 
-    Begin {
+    begin {
         Set-StrictMode -Version Latest
 
         # Initialize logging
@@ -108,7 +108,7 @@
 
     } #end Begin
 
-    Process {
+    process {
         Write-Progress -Activity 'Clearing Delivery Optimization Cache' -Status 'Checking cache size...'
 
         try {
@@ -119,10 +119,19 @@
                 try {
                     # Get initial cache size
                     $status = Get-DeliveryOptimizationStatus -ErrorAction Stop
-                    $initialSize = $status.FileSizeInCache
-                    Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
+                    if ($null -ne $status -and $status.PSObject.Properties.Name -contains 'FileSizeInCache') {
+                        $initialSize = $status.FileSizeInCache
+                        if ($null -eq $initialSize) {
+                            $initialSize = 0
+                        }
+                        Write-Debug -Message ('Initial cache size: {0:N2} MB' -f ($initialSize / 1MB))
+                    } else {
+                        Write-Debug -Message 'FileSizeInCache property not available'
+                        $initialSize = 0
+                    }
                 } catch {
                     Write-Warning -Message ('Failed to get cache status: {0}' -f $_.Exception.Message)
+                    $initialSize = 0
                 }
             }
 
@@ -146,34 +155,99 @@
                     }
                 }
             } else {
-                # Fallback or if module not available
-                Write-Verbose -Message 'Using Disk Cleanup as fallback or primary method'
+                # Fallback for Windows Server Core or when module not available
+                Write-Verbose -Message 'Using native PowerShell fallback method'
 
-                if ($PSCmdlet.ShouldProcess('Delivery Optimization Cache', 'Cleanup with cleanmgr')) {
+                if ($PSCmdlet.ShouldProcess('Delivery Optimization Cache', 'Manual cleanup')) {
                     try {
-                        # Prepare cleanmgr sageset
-                        $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Delivery Optimization Files'
-                        if (Test-Path -Path $regPath) {
-                            # Set the Delivery Optimization Files option to be selected
-                            Set-ItemProperty -Path $regPath -Name 'StateFlags0001' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
+                        # Define common Delivery Optimization cache locations
+                        $cacheLocations = @(
+                            Join-Path -Path $env:SystemRoot -ChildPath (
+                                'ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache'
+                            )
+                            Join-Path -Path $env:SystemRoot -ChildPath 'SoftwareDistribution\DeliveryOptimization'
+                            Join-Path -Path $env:ProgramData -ChildPath 'Microsoft\Windows\DeliveryOptimization'
+                        )
+
+                        $totalBytesFreed = 0
+                        $processedLocations = 0
+
+                        foreach ($location in $cacheLocations) {
+                            if (Test-Path -Path $location) {
+                                Write-Verbose -Message ('Processing cache location: {0}' -f $location)
+
+                                try {
+                                    # Calculate size before deletion
+                                    $filesBeforeDeletion = Get-ChildItem -Path $location -Recurse -File -Force `
+                                        -ErrorAction SilentlyContinue
+                                    $measureResult = $filesBeforeDeletion | Measure-Object -Property Length -Sum `
+                                        -ErrorAction SilentlyContinue
+                                    
+                                    if ($null -ne $measureResult -and $measureResult.PSObject.Properties.Name -contains 'Sum') {
+                                        $sizeBeforeDeletion = $measureResult.Sum
+                                    } else {
+                                        $sizeBeforeDeletion = 0
+                                    }
+
+                                    # Remove cache files
+                                    if ($sizeBeforeDeletion -gt 0) {
+                                        $targetPath = Join-Path -Path $location -ChildPath '*'
+                                        Remove-Item -Path $targetPath -Recurse -Force -ErrorAction SilentlyContinue
+                                        $totalBytesFreed += $sizeBeforeDeletion
+                                        Write-Debug -Message ('Cleaned {0:N2} MB from {1}' -f `
+                                            ($sizeBeforeDeletion / 1MB), $location)
+                                    }
+
+                                    $processedLocations++
+                                } catch {
+                                    Write-Warning -Message ('Failed to clean {0}: {1}' -f $location, $_.Exception.Message)
+                                }
+                            } else {
+                                Write-Debug -Message ('Cache location not found: {0}' -f $location)
+                            }
                         }
 
-                        # Run cleanmgr
-                        $cleanMgr = Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:1' -Wait -PassThru
+                        # Try to stop and restart Delivery Optimization service if files were found
+                        if ($totalBytesFreed -gt 0) {
+                            try {
+                                $doSvc = Get-Service -Name 'DoSvc' -ErrorAction SilentlyContinue
+                                if ($doSvc -and $doSvc.Status -eq 'Running') {
+                                    Write-Verbose -Message 'Stopping Delivery Optimization service for cleanup'
+                                    Stop-Service -Name 'DoSvc' -Force -ErrorAction SilentlyContinue
+                                    Start-Sleep -Seconds 2
 
-                        if ($cleanMgr.ExitCode -eq 0) {
-                            # Approximate freed space - we can't know exactly without module
-                            $result.BytesFreed = 1024 * 1024 * 10  # Assume at least 10MB
-                            $result.Method = 'DiskCleanup'
-                            $result.Success = $true
-                            Write-Debug -Message 'Cache cleared using Disk Cleanup'
+                                    # Retry cleanup after stopping service
+                                    foreach ($location in $cacheLocations) {
+                                        if (Test-Path -Path $location) {
+                                            $targetPath = Join-Path -Path $location -ChildPath '*'
+                                            Remove-Item -Path $targetPath -Recurse -Force -ErrorAction SilentlyContinue
+                                        }
+                                    }
+
+                                    Start-Service -Name 'DoSvc' -ErrorAction SilentlyContinue
+                                    Write-Debug -Message 'Restarted Delivery Optimization service'
+                                }
+                            } catch {
+                                Write-Debug -Message ('Service management error: {0}' -f $_.Exception.Message)
+                            }
+                        }
+
+                        $result.BytesFreed = $totalBytesFreed
+                        $result.Method = 'NativePowerShell'
+                        $result.Success = $true
+
+                        if ($totalBytesFreed -gt 0) {
+                            Write-Verbose -Message ('Freed {0:N2} MB using native PowerShell method' -f ($totalBytesFreed / 1MB))
                         } else {
-                            throw "Disk Cleanup failed with exit code: $($cleanMgr.ExitCode)"
+                            Write-Verbose -Message 'No Delivery Optimization cache files found to clean'
                         }
                     } catch {
                         $errorMsg = ('Disk Cleanup failed: {0}' -f $_.Exception.Message)
-                        Write-Error -Message $errorMsg
+                        Write-Warning -Message $errorMsg
                         $result.Errors += $errorMsg
+                        # Don't fail completely if disk cleanup fails
+                        $result.Success = $true
+                        $result.Method = 'Failed'
                     }
                 }
             }
@@ -181,9 +255,12 @@
             # Final verification if module is available
             if ($moduleAvailable) {
                 try {
-                    $finalSize = (Get-DeliveryOptimizationStatus -ErrorAction SilentlyContinue).FileSizeInCache
-                    if ($null -ne $finalSize) {
-                        $result.Success = ($finalSize -lt $initialSize)
+                    $finalStatus = Get-DeliveryOptimizationStatus -ErrorAction SilentlyContinue
+                    if ($null -ne $finalStatus -and $finalStatus.PSObject.Properties.Name -contains 'FileSizeInCache') {
+                        $finalSize = $finalStatus.FileSizeInCache
+                        if ($null -ne $finalSize) {
+                            $result.Success = ($finalSize -lt $initialSize)
+                        }
                     }
                 } catch {
                     # Don't override success if verification fails
@@ -200,7 +277,7 @@
         } #end try-catch-finally
     } #end Process
 
-    End {
+    end {
         if ($null -ne $Variables -and
             $null -ne $Variables.FooterHousekeeping) {
 

@@ -1,4 +1,4 @@
-﻿Function Start-DiskCleanup {
+﻿function Start-DiskCleanup {
     <#
         .SYNOPSIS
             Comprehensive system cleanup utility.
@@ -84,7 +84,7 @@
     )]
     [OutputType([PSCustomObject])]
 
-    Param (
+    param (
         [Parameter(Mandatory = $false,
             ValueFromPipeline = $True,
             ValueFromPipelineByPropertyName = $True,
@@ -226,7 +226,7 @@
         $LogFiles
     )
 
-    Begin {
+    begin {
         Set-StrictMode -Version Latest
 
         # Initialize logging
@@ -247,6 +247,16 @@
 
         ##############################
         # Variables Definition
+
+        # Detect Windows Server Core
+        $isServerCore = $false
+        try {
+            $installationType = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'InstallationType' -ErrorAction SilentlyContinue
+            $isServerCore = ($installationType.InstallationType -eq 'Server Core')
+            Write-Debug -Message ('Windows Server Core detected: {0}' -f $isServerCore)
+        } catch {
+            Write-Debug -Message 'Could not determine installation type'
+        }
 
         # Verify administrative privileges
         $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -286,7 +296,7 @@
 
     } #end Begin
 
-    Process {
+    process {
 
         # Track total operations
         $totalOperations = ($PSBoundParameters.Keys | Where-Object { $_ -ne 'Verbose' -and $_ -ne 'Debug' -and $_ -ne 'WhatIf' -and $_ -ne 'Confirm' }).Count
@@ -359,38 +369,105 @@
 
             # Define the cleanup operations mapping
             $cleanupOperations = @(
-                @{ ParamName = 'CCM'; FunctionName = 'Clear-CCMcache'; Args = @{} }
-                @{ ParamName = 'DeliveryOptimization'; FunctionName = 'Clear-DeliveryOptimizationFile'; Args = @{} }
-                @{ ParamName = 'ErrorReport'; FunctionName = 'Clear-ErrorReport'; Args = @{} }
-                @{ ParamName = 'LogFiles'; FunctionName = 'Clear-LogFile'; Args = @{} }
-                @{ ParamName = 'RecycleBin'; FunctionName = 'Clear-RecycleBin'; Args = @{} }
-                @{ ParamName = 'TempFiles'; FunctionName = 'Clear-TemporaryFile'; Args = @{} }
-                @{ ParamName = 'Folders'; FunctionName = 'Clear-TemporaryFolder'; Args = @{} }
-                @{ ParamName = 'Profiles'; FunctionName = 'Clear-UserProfile'; Args = @{ ProfileAge = 65 } }
-                @{ ParamName = 'WindowsLogs'; FunctionName = 'Clear-WindowsLog'; Args = @{} }
-                @{ ParamName = 'WindowsUpdate'; FunctionName = 'Clear-WindowsUpdate'; Args = @{} }
+                @{
+                    ParamName    = 'CCM'
+                    FunctionName = 'Clear-CCMcache'
+                    Args         = @{}
+                    Description  = 'Configuration Manager Cache'
+                }
+                @{
+                    ParamName    = 'DeliveryOptimization'
+                    FunctionName = 'Clear-DeliveryOptimizationFile'
+                    Args         = @{}
+                    Description  = 'Delivery Optimization Files'
+                }
+                @{
+                    ParamName    = 'ErrorReport'
+                    FunctionName = 'Clear-ErrorReport'
+                    Args         = @{}
+                    Description  = 'Error Report Files'
+                }
+                @{
+                    ParamName    = 'LogFiles'
+                    FunctionName = 'Clear-LogFile'
+                    Args         = @{}
+                    Description  = 'Log Files'
+                }
+                @{
+                    ParamName    = 'RecycleBin'
+                    FunctionName = 'Clear-RecycleBin'
+                    Args         = @{}
+                    Description  = 'Recycle Bin'
+                }
+                @{
+                    ParamName    = 'TempFiles'
+                    FunctionName = 'Clear-TemporaryFile'
+                    Args         = @{}
+                    Description  = 'Temporary Files'
+                }
+                @{
+                    ParamName    = 'Folders'
+                    FunctionName = 'Clear-TemporaryFolder'
+                    Args         = @{}
+                    Description  = 'Temporary Folders'
+                }
+                @{
+                    ParamName    = 'Profiles'
+                    FunctionName = 'Clear-UserProfile'
+                    Args         = @{ ProfileAge = 65 }
+                    Description  = 'User Profiles'
+                }
+                @{
+                    ParamName    = 'WindowsLogs'
+                    FunctionName = 'Clear-WindowsLog'
+                    Args         = @{}
+                    Description  = 'Windows Logs'
+                }
+                @{
+                    ParamName    = 'WindowsUpdate'
+                    FunctionName = 'Clear-WindowsUpdate'
+                    Args         = @{}
+                    Description  = 'Windows Update Cache'
+                }
             )
 
             # Process each cleanup operation
             foreach ($operation in $cleanupOperations) {
                 if ($PSBoundParameters.ContainsKey($operation.ParamName)) {
                     $currentOperation++
-                    Write-Progress -Activity 'System Cleanup' -Status "Running $($operation.ParamName)" `
+                    Write-Progress -Activity 'System Cleanup' -Status "Running $($operation.Description)" `
                         -PercentComplete (($currentOperation / $totalOperations) * 100)
 
-                    if ($PSCmdlet.ShouldProcess($operation.ParamName, 'Cleanup')) {
+                    if ($PSCmdlet.ShouldProcess($operation.Description, 'Cleanup')) {
                         try {
-                            Write-Verbose -Message ('Executing {0} with args: {1}' -f $operation.FunctionName,
-                                ($operation.Args.Keys -join ', '))
+                            Write-Verbose -Message ('Executing {0} for {1}' -f $operation.FunctionName, $operation.Description)
 
                             # Check if function exists
                             if (Get-Command -Name $operation.FunctionName -ErrorAction SilentlyContinue) {
-                                $scriptBlock = [scriptblock]::Create($operation.FunctionName)
-                                $cleanupResult = & $scriptBlock @($operation.Args)
+
+                                # Execute the function with error handling
+                                $cleanupResult = $null
+                                try {
+                                    if ($operation.Args.Count -gt 0) {
+                                        $argsToSplat = $operation.Args
+                                        $cleanupResult = & $operation.FunctionName @argsToSplat `
+                                            -ErrorAction SilentlyContinue
+                                    } else {
+                                        $cleanupResult = & $operation.FunctionName -ErrorAction SilentlyContinue
+                                    }
+                                } catch {
+                                    $errorMessage = ('Non-terminating error in {0}: {1}' -f
+                                        $operation.FunctionName, $_.Exception.Message)
+                                    Write-Warning -Message $errorMessage
+                                    $result.Errors += $errorMessage
+                                }
 
                                 # Handle result based on properties
                                 if ($null -ne $cleanupResult) {
-                                    if ($cleanupResult -is [PSCustomObject] -and $cleanupResult.PSObject.Properties.Name -contains 'Success') {
+                                    $hasSuccessProperty = ($cleanupResult -is [PSCustomObject] -and
+                                        $cleanupResult.PSObject.Properties.Name -contains 'Success')
+
+                                    if ($hasSuccessProperty) {
                                         if ($cleanupResult.Success) {
                                             $result.OperationsRun++
 
@@ -399,9 +476,9 @@
                                                 $result.SpaceRecovered += $cleanupResult.BytesFreed
                                             }
 
-                                            Write-Debug -Message ('{0} completed successfully' -f $operation.FunctionName)
+                                            Write-Verbose -Message ('{0} completed successfully' -f $operation.Description)
                                         } else {
-                                            Write-Warning -Message ('{0} reported failure' -f $operation.FunctionName)
+                                            Write-Warning -Message ('{0} reported failure' -f $operation.Description)
                                             if ($cleanupResult.PSObject.Properties.Name -contains 'Errors') {
                                                 foreach ($err in $cleanupResult.Errors) {
                                                     $result.Errors += $err
@@ -411,10 +488,12 @@
                                     } else {
                                         # Generic success for functions without proper return structure
                                         $result.OperationsRun++
-                                        Write-Debug -Message ('{0} executed without proper return structure' -f $operation.FunctionName)
+                                        $verboseMessage = ('{0} executed without proper return structure' -f
+                                            $operation.Description)
+                                        Write-Verbose -Message $verboseMessage
                                     }
                                 } else {
-                                    Write-Warning -Message ('{0} returned null' -f $operation.FunctionName)
+                                    Write-Warning -Message ('{0} returned null result' -f $operation.Description)
                                 }
                             } else {
                                 $errorMsg = ('Function {0} not found' -f $operation.FunctionName)
@@ -423,7 +502,7 @@
                             }
 
                         } catch {
-                            $errorMsg = "Failed to run $($operation.FunctionName): $($_.Exception.Message)"
+                            $errorMsg = "Failed to run $($operation.Description): $($_.Exception.Message)"
                             Write-Warning -Message $errorMsg
                             $result.Errors += $errorMsg
                         } #end try-catch
@@ -464,12 +543,37 @@
                 } #end If
             } #end If
 
+            # Additional Server Core specific cleanup if detected
+            if ($isServerCore) {
+                $currentOperation++
+                Write-Progress -Activity 'System Cleanup' -Status 'Running Server Core Cleanup' `
+                    -PercentComplete (($currentOperation / $totalOperations) * 100)
+
+                if ($PSCmdlet.ShouldProcess('Server Core System', 'Enhanced cleanup')) {
+                    try {
+                        $serverCoreResult = Clear-WindowsServerCoreCleanup -CleanupType All -ErrorAction SilentlyContinue
+
+                        if ($serverCoreResult -and $serverCoreResult.Success) {
+                            $result.OperationsRun += $serverCoreResult.OperationsRun
+                            $result.SpaceRecovered += $serverCoreResult.BytesFreed
+                            Write-Verbose -Message 'Server Core cleanup completed successfully'
+                        } else {
+                            Write-Verbose -Message 'Server Core cleanup completed with warnings'
+                        }
+                    } catch {
+                        $errorMsg = "Server Core cleanup failed: $($_.Exception.Message)"
+                        Write-Warning -Message $errorMsg
+                        $result.Errors += $errorMsg
+                    } #end try-catch
+                } #end If
+            } #end If
+
             # Calculate space recovered from disk if we haven't been tracking precisely
             $finalFreeSpace = (Get-PSDrive $env:SystemDrive[0]).Free
             $diskSpaceRecovered = $finalFreeSpace - $initialFreeSpace
 
             # If disk space calculation shows more recovery than our tracking, use that value
-            if ($diskSpaceRecovered > $result.SpaceRecovered) {
+            if ($diskSpaceRecovered -gt $result.SpaceRecovered) {
                 $result.SpaceRecovered = $diskSpaceRecovered
             }
 
@@ -484,7 +588,7 @@
         } #end try-catch-finally
     } #end Process
 
-    End {
+    end {
         Write-Verbose -Message ('Recovered: {0:N2} GB, Operations: {1}, Errors: {2}' -f
             ($result.SpaceRecovered / 1GB), $result.OperationsRun, $result.Errors.Count)
 

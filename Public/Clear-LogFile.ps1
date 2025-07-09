@@ -123,7 +123,10 @@
 
         # Verify directory exists
         if (-not (Test-Path -Path $Directory -PathType Container)) {
-            Write-Warning -Message ('Directory not found: {0}' -f $Directory)
+            Write-Verbose -Message ('Directory not found: {0}' -f $Directory)
+            $result.Success = $true  # Not an error if directory doesn't exist
+            $result.FilesRemoved = 0
+            $result.BytesFreed = 0
             return $result
         } #end If
 

@@ -103,14 +103,17 @@
             @{
                 Path        = $env:TEMP
                 Description = 'User temporary files'
+                Recursive   = $true
             },
             @{
                 Path        = $env:windir + '\Temp'
                 Description = 'Windows temporary files'
+                Recursive   = $true
             },
             @{
-                Path        = $env:SystemDrive
-                Description = 'System drive temporary files'
+                Path        = $env:SystemDrive + '\Temp'
+                Description = 'System drive temp folder'
+                Recursive   = $true
             }
         )
 
@@ -137,8 +140,23 @@
                     continue
                 } #end if
 
-                # Get all matching files
-                $files = Get-ChildItem -Path $location.Path -Include $FileExtensions -File -Recurse -Force -ErrorAction Stop
+                # Get all matching files with proper error handling for junction points
+                $files = @()
+                try {
+                    if ($location.Recursive) {
+                        # Use safer recursion with junction point handling
+                        $files = Get-ChildItem -Path $location.Path -Include $FileExtensions -File -Recurse `
+                            -Force -ErrorAction SilentlyContinue | 
+                            Where-Object { $_.LinkType -ne 'Junction' -and $_.LinkType -ne 'SymbolicLink' }
+                    } else {
+                        $files = Get-ChildItem -Path $location.Path -Include $FileExtensions -File `
+                            -Force -ErrorAction SilentlyContinue
+                    }
+                } catch {
+                    Write-Warning -Message ('Error accessing {0}: {1}' -f $location.Path, $_.Exception.Message)
+                    continue
+                }
+                
                 $totalFiles = ($files | Measure-Object).Count
 
                 if ($totalFiles -gt 0) {
@@ -201,7 +219,8 @@
 
         } #end foreach
 
-        $result.Success = ($result.FilesRemoved -gt 0 -and $result.Errors.Count -eq 0)
+        # Success should be based on whether we had errors, not whether files were found
+        $result.Success = ($result.Errors.Count -eq 0)
 
     } #end Process
 

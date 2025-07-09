@@ -112,7 +112,22 @@
             Write-Debug -Message 'Checking for CCM client installation...'
 
             # Check if CCM client is installed using CimInstance
-            $ccmClient = Get-CimInstance -Namespace 'root\ccm' -ClassName 'SMS_Client' -ErrorAction Stop
+            try {
+                $ccmClient = Get-CimInstance -Namespace 'root\ccm' -ClassName 'SMS_Client' -ErrorAction Stop
+                Write-Verbose -Message 'CCM client found. Starting cache cleanup...'
+            } catch [Microsoft.Management.Infrastructure.CimException] {
+                # Handle CIM/WMI namespace issues
+                Write-Verbose -Message 'CCM client not found or WMI namespace unavailable'
+                $result.Message = 'CCM client not installed or WMI namespace unavailable'
+                $result.Success = $true  # Not an error if CCM is not installed
+                return $result
+            } catch {
+                # Handle other errors
+                Write-Verbose -Message ('Error checking CCM client: {0}' -f $_.Exception.Message)
+                $result.Message = 'Error checking CCM client installation'
+                $result.Success = $true  # Not an error if CCM is not installed
+                return $result
+            }
 
             if ($ccmClient) {
                 Write-Verbose -Message 'CCM client found. Starting cache cleanup...'

@@ -126,8 +126,29 @@
                         Write-Debug -Message ('Removing item from Recycle Bin: {0}' -f $_.Name)
                     }
 
-                    # Use the built-in command
-                    $shell.Namespace(0xA).InvokeVerb('EmptyRecycleBin')
+                    # Use alternative method to empty recycle bin
+                    try {
+                        # Try the InvokeVerb method first
+                        $recycleBin.InvokeVerb('Empty')
+                        Write-Debug -Message 'Recycle Bin emptied using InvokeVerb method'
+                    } catch {
+                        # Fallback to direct file removal
+                        Write-Debug -Message 'InvokeVerb failed, using direct removal method'
+                        
+                        # Get all drives and empty their recycle bins
+                        $drives = Get-PSDrive -PSProvider FileSystem
+                        foreach ($drive in $drives) {
+                            $recycleFolder = Join-Path -Path $drive.Root -ChildPath '$RECYCLE.BIN'
+                            if (Test-Path -Path $recycleFolder) {
+                                try {
+                                    Get-ChildItem -Path $recycleFolder -Recurse -Force -ErrorAction SilentlyContinue | 
+                                        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                                } catch {
+                                    Write-Debug -Message ('Error removing from {0}: {1}' -f $recycleFolder, $_.Exception.Message)
+                                }
+                            }
+                        }
+                    }
 
                     # Get final disk space info to calculate space freed
                     $drive = Get-PSDrive $env:SystemDrive[0]
@@ -160,6 +181,12 @@
             }
             [System.GC]::Collect()
         } #end try-catch-finally
+
+        # Set overall success based on error count
+        if ($result.Success -eq $false -and $result.Errors.Count -eq 0) {
+            $result.Success = $true
+        }
+
     } #end Process
 
     End {
